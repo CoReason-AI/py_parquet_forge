@@ -57,6 +57,23 @@ jobs:
         run: python -m pip install --upgrade pip setuptools wheel
         shell: bash
 
+      - name: Install Arrow C++ (macOS)
+        if: runner.os == 'macOS'
+        run: brew install apache-arrow
+        shell: bash
+
+      - name: Install Arrow C++ (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -V libarrow-dev
+        shell: bash
+
+      - name: Install Arrow C++ (Windows)
+        if: runner.os == 'Windows'
+        run: choco install apache-arrow
+        shell: bash
+
       - name: Install Poetry
         run: pipx install poetry
         shell: bash
