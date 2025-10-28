@@ -112,6 +112,38 @@ def test_write_parquet_atomicity_on_failure(tmp_path):
     assert not temp_files, f"Temp files found: {temp_files}"
 
 
+def test_write_parquet_os_error_on_cleanup(tmp_path):
+    """Verify that an OSError during cleanup is logged but not propagated."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    df = pd.DataFrame({"a": [1]})
+
+    # Mock os.replace to allow the temporary file to be created but not renamed
+    with patch("os.replace"):
+        # Mock os.remove to raise an OSError
+        with patch("os.remove", side_effect=OSError("Permission denied")):
+            # Act
+            write_parquet(df, output_path, schema)
+
+    # Assert
+    # The test passes if no exception is raised
+
+
+def test_write_parquet_exception_on_replace(tmp_path):
+    """Verify that an exception during replace is handled correctly."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    df = pd.DataFrame({"a": [1]})
+
+    # Mock os.replace to raise an exception
+    with patch("os.replace", side_effect=Exception("Test exception")):
+        # Act & Assert
+        with pytest.raises(Exception):
+            write_parquet(df, output_path, schema)
+
+
 def test_write_parquet_overwrites_existing_file(tmp_path):
     """Verify that write_parquet overwrites an existing file."""
     # Arrange

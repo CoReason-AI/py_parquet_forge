@@ -16,6 +16,7 @@ __version__ = "0.1.0"
 __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
-from .main import hello_world
+from .exceptions import SchemaValidationError
+from .main import inspect_schema, write_parquet
 
-__all__ = ["hello_world"]
+__all__ = ["write_parquet", "inspect_schema", "SchemaValidationError"]
