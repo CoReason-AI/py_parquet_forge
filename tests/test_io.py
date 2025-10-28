@@ -396,3 +396,17 @@ def test_write_to_dataset_pydict_input(tmp_path):
     table = pq.read_table(output_dir)
     assert table.num_rows == 2
     assert table.schema.equals(pa.schema([pa.field("id", pa.int64())]))
+
+
+def test_write_to_dataset_overwrite_os_error(tmp_path):
+    """Verify that an OSError during directory removal is propagated."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    df = pd.DataFrame({"col1": [1]})
+    write_to_dataset(df, output_dir, schema)  # Create the directory
+
+    # Act & Assert
+    with patch("shutil.rmtree", side_effect=OSError("Permission denied")):
+        with pytest.raises(OSError, match="Permission denied"):
+            write_to_dataset(df, output_dir, schema, mode="overwrite")
