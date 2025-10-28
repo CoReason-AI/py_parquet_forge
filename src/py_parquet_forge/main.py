@@ -12,7 +12,7 @@ import os
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any, List, Optional, TypeAlias, Union
+from typing import Any, Iterator, List, Optional, TypeAlias, Union
 
 import pandas as pd
 import pyarrow as pa
@@ -207,3 +207,26 @@ def read_parquet(
     if output_format == "pandas":
         return table.to_pandas()
     return table
+
+
+def read_parquet_iter(
+    input_path: PathLike,
+    chunk_size: int = 100_000,
+    columns: Optional[List[str]] = None,
+    filters: Optional[PyArrowFilters] = None,
+    **kwargs: Any,
+) -> Iterator[pa.RecordBatch]:
+    """
+    Reads a large Parquet file or dataset in memory-efficient chunks.
+
+    This function acts as a generator, yielding data in pyarrow.RecordBatch objects,
+    which helps in processing datasets that are larger than available memory.
+
+    :param input_path: The path to the Parquet file or dataset directory.
+    :param chunk_size: The desired number of rows per chunk (approximate).
+    :param columns: A list of column names to read (projection).
+    :param filters: A PyArrow-compatible filter expression for predicate pushdown.
+    :param kwargs: Additional arguments passed to the underlying pyarrow functions.
+    :return: An iterator of pyarrow.RecordBatch objects.
+    """
+    raise NotImplementedError
