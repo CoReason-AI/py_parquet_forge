@@ -96,8 +96,9 @@ def write_parquet(
 
     try:
         pq.write_table(table, temp_file_path, **kwargs)
-        # Atomically rename the temporary file to the final destination
-        os.rename(temp_file_path, output_path_obj)
+        # Atomically move the temporary file to the final destination, overwriting if it exists.
+        # os.replace provides atomic overwrite functionality on both POSIX and Windows.
+        os.replace(temp_file_path, output_path_obj)
         logger.info(f"Successfully wrote Parquet file to {output_path_obj}")
     except Exception as e:
         logger.error(f"Failed to write Parquet file to {output_path_obj}: {e}")

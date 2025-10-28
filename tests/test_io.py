@@ -119,8 +119,8 @@ def test_write_parquet_os_error_on_cleanup(tmp_path):
     schema = pa.schema([pa.field("a", pa.int32())])
     df = pd.DataFrame({"a": [1]})
 
-    # Mock os.rename to allow the temporary file to be created but not renamed
-    with patch("os.rename"):
+    # Mock os.replace to allow the temporary file to be created but not renamed
+    with patch("os.replace"):
         # Mock os.remove to raise an OSError
         with patch("os.remove", side_effect=OSError("Permission denied")):
             # Act
@@ -130,15 +130,15 @@ def test_write_parquet_os_error_on_cleanup(tmp_path):
     # The test passes if no exception is raised
 
 
-def test_write_parquet_exception_on_rename(tmp_path):
-    """Verify that an exception during rename is handled correctly."""
+def test_write_parquet_exception_on_replace(tmp_path):
+    """Verify that an exception during replace is handled correctly."""
     # Arrange
     output_path = tmp_path / "test.parquet"
     schema = pa.schema([pa.field("a", pa.int32())])
     df = pd.DataFrame({"a": [1]})
 
-    # Mock os.rename to raise an exception
-    with patch("os.rename", side_effect=Exception("Test exception")):
+    # Mock os.replace to raise an exception
+    with patch("os.replace", side_effect=Exception("Test exception")):
         # Act & Assert
         with pytest.raises(Exception):
             write_parquet(df, output_path, schema)
