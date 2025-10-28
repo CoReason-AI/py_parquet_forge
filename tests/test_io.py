@@ -8,7 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/py_parquet_forge
 
-import os
 from unittest.mock import patch
 
 import pandas as pd

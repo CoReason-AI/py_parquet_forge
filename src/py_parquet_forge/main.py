@@ -11,7 +11,7 @@
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, TypeAlias, Union
 
 import pandas as pd
 import pyarrow as pa
@@ -21,9 +21,11 @@ from loguru import logger
 from .exceptions import SchemaValidationError
 
 # Define flexible type hints for function signatures
-PathLike = Union[str, os.PathLike, Path]
-PyArrowSchema = pa.Schema
-InputData = Union[list[dict[str, Any]], pd.DataFrame, pa.Table, pa.RecordBatch]
+PathLike: TypeAlias = Union[str, os.PathLike, Path]
+PyArrowSchema: TypeAlias = pa.Schema
+InputData: TypeAlias = Union[
+    list[dict[str, Any]], pd.DataFrame, pa.Table, pa.RecordBatch
+]
 
 
 def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
@@ -61,7 +63,9 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
 
     except (pa.ArrowInvalid, KeyError, TypeError) as e:
         # Catch conversion/casting errors and raise our custom exception.
-        raise SchemaValidationError(f"Failed to cast data to the target schema: {e}") from e
+        raise SchemaValidationError(
+            f"Failed to cast data to the target schema: {e}"
+        ) from e
 
 
 def hello_world():
@@ -69,7 +73,9 @@ def hello_world():
     return "Hello World!"
 
 
-def write_parquet(data: InputData, output_path: PathLike, schema: PyArrowSchema, **kwargs: Any) -> None:
+def write_parquet(
+    data: InputData, output_path: PathLike, schema: PyArrowSchema, **kwargs: Any
+) -> None:
     """
     Writes an in-memory data object to a single Parquet file atomically.
 
