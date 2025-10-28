@@ -17,6 +17,6 @@ __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
 from .exceptions import SchemaValidationError
-from .main import inspect_schema, write_parquet
+from .main import inspect_schema, read_parquet, write_parquet
 
-__all__ = ["write_parquet", "inspect_schema", "SchemaValidationError"]
+__all__ = ["write_parquet", "inspect_schema", "read_parquet", "SchemaValidationError"]

@@ -27,6 +27,7 @@ PyArrowSchema: TypeAlias = pa.Schema
 InputData: TypeAlias = Union[
     list[dict[str, Any]], pd.DataFrame, pa.Table, pa.RecordBatch
 ]
+PyArrowFilters: TypeAlias = Any
 
 
 def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
@@ -176,3 +177,35 @@ def write_to_dataset(
         **kwargs,
     )
     logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
+
+
+def read_parquet(
+    input_path: PathLike,
+    output_format: str = "pandas",
+    columns: Optional[List[str]] = None,
+    filters: Optional[PyArrowFilters] = None,
+    **kwargs: Any,
+) -> Union[pd.DataFrame, pa.Table]:
+    """
+    Reads an entire Parquet file or dataset into memory.
+
+    This function provides a convenient way to load Parquet data, supporting
+    column projection, predicate pushdown (filtering), and multiple output formats.
+
+    :param input_path: The path to the Parquet file or dataset directory.
+    :param output_format: The desired output format ('pandas' or 'arrow').
+    :param columns: A list of column names to read (projection).
+    :param filters: A PyArrow-compatible filter expression for predicate pushdown.
+    :param kwargs: Additional arguments passed to pyarrow.parquet.read_table.
+    :return: The data as a pandas.DataFrame or pyarrow.Table.
+    """
+    if output_format not in ["pandas", "arrow"]:
+        raise ValueError("output_format must be either 'pandas' or 'arrow'")
+
+    table = pq.read_table(
+        input_path, columns=columns, filters=filters, **kwargs
+    )
+
+    if output_format == "pandas":
+        return table.to_pandas()
+    return table
