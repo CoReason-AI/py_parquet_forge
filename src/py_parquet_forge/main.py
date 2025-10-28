@@ -39,9 +39,11 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
             table = pa.Table.from_pandas(data, preserve_index=False)
         elif isinstance(data, list):
             if not data:
-                return pa.Table.from_pylist([], schema=schema)
-            # Create from list of dicts, inferring schema.
-            table = pa.Table.from_pylist(data)
+                # Create an empty table with the provided schema.
+                table = pa.Table.from_pylist([], schema=schema)
+            else:
+                # Create from list of dicts, inferring schema.
+                table = pa.Table.from_pylist(data)
         elif isinstance(data, pa.RecordBatch):
             table = pa.Table.from_batches([data])
         elif isinstance(data, pa.Table):
@@ -66,11 +68,6 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         raise SchemaValidationError(
             f"Failed to cast data to the target schema: {e}"
         ) from e
-
-
-def hello_world():
-    logger.info("Hello World!")
-    return "Hello World!"
 
 
 def write_parquet(
