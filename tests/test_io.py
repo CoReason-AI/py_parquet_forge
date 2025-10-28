@@ -20,14 +20,18 @@ def test_inspect_schema_single_file(tmp_path):
     """Verify that inspect_schema correctly reads the schema from a single Parquet file."""
     # Arrange
     output_path = tmp_path / "test.parquet"
-    expected_schema = pa.schema([
-        pa.field("col1", pa.int64()),
-        pa.field("col2", pa.string()),
-    ])
-    df = pd.DataFrame({
-        "col1": [1, 2, 3],
-        "col2": ["a", "b", "c"],
-    })
+    expected_schema = pa.schema(
+        [
+            pa.field("col1", pa.int64()),
+            pa.field("col2", pa.string()),
+        ]
+    )
+    df = pd.DataFrame(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+        }
+    )
     table = pa.Table.from_pandas(df, schema=expected_schema)
     pq.write_table(table, output_path)
 
@@ -64,15 +68,17 @@ def test_inspect_schema_dataset_directory(tmp_path):
     """Verify that inspect_schema correctly reads the schema from a dataset directory."""
     # Arrange
     output_dir = tmp_path / "dataset"
-    write_schema = pa.schema([
-        pa.field("col1", pa.int64()),
-        pa.field("col2", pa.string()),
-        pa.field("partition_col", pa.string()),
-    ])
+    write_schema = pa.schema(
+        [
+            pa.field("col1", pa.int64()),
+            pa.field("col2", pa.string()),
+            pa.field("partition_col", pa.string()),
+        ]
+    )
     data = {
         "col1": [1, 2, 3],
         "col2": ["a", "b", "c"],
-        "partition_col": ["one", "two", "one"]
+        "partition_col": ["one", "two", "one"],
     }
     table = pa.Table.from_pydict(data, schema=write_schema)
     pq.write_to_dataset(table, root_path=output_dir, partition_cols=["partition_col"])
@@ -82,11 +88,15 @@ def test_inspect_schema_dataset_directory(tmp_path):
 
     # When a dataset is read, the partition column is dictionary-encoded by default.
     # We must construct the expected schema to reflect this for a valid comparison.
-    expected_schema_after_read = pa.schema([
-        pa.field("col1", pa.int64()),
-        pa.field("col2", pa.string()),
-        pa.field("partition_col", pa.dictionary(pa.int32(), pa.string(), ordered=False))
-    ])
+    expected_schema_after_read = pa.schema(
+        [
+            pa.field("col1", pa.int64()),
+            pa.field("col2", pa.string()),
+            pa.field(
+                "partition_col", pa.dictionary(pa.int32(), pa.string(), ordered=False)
+            ),
+        ]
+    )
 
     # Assert
     assert actual_schema.equals(expected_schema_after_read)
