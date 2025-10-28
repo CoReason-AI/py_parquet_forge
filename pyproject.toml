@@ -10,6 +10,7 @@ packages = [{include = "py_parquet_forge", from = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.12"
 loguru = "^0.7.2"
+pyarrow = "^22.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
