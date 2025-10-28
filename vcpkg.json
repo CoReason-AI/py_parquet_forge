@@ -1,0 +1,7 @@
+{
+  "name": "py-parquet-forge",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "arrow"
+  ]
+}

@@ -62,8 +62,9 @@ jobs:
 
       - name: Install Arrow C++ (Windows)
         if: runner.os == 'Windows'
-        run: choco install apache-arrow
-        shell: bash
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: '**/vcpkg.json'
 
       - name: Install Arrow C++ (macOS)
         if: runner.os == 'macOS'
