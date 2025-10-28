@@ -84,10 +84,7 @@ def test_convert_to_arrow_table_schema_already_correct(tmp_path):
 def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path):
     """Verify SchemaValidationError is raised when a column is missing."""
     # Arrange
-    schema = pa.schema([
-        pa.field("a", pa.int32()),
-        pa.field("b", pa.string())
-    ])
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
     df = pd.DataFrame({"a": [1, 2, 3]})  # Missing column "b"
 
     # Act & Assert
@@ -99,10 +96,12 @@ def test_convert_to_arrow_table_ignores_extra_columns(tmp_path):
     """Verify that extra columns in the input data are correctly ignored."""
     # Arrange
     schema = pa.schema([pa.field("a", pa.int32())])
-    df = pd.DataFrame({
-        "a": [1, 2, 3],
-        "b": [4, 5, 6]  # Extra column "b"
-    })
+    df = pd.DataFrame(
+        {
+            "a": [1, 2, 3],
+            "b": [4, 5, 6],  # Extra column "b"
+        }
+    )
 
     # Act
     table = _convert_to_arrow_table(df, schema)
@@ -115,14 +114,8 @@ def test_convert_to_arrow_table_ignores_extra_columns(tmp_path):
 def test_convert_to_arrow_table_reorders_columns(tmp_path):
     """Verify that columns are correctly reordered to match the schema."""
     # Arrange
-    schema = pa.schema([
-        pa.field("b", pa.string()),
-        pa.field("a", pa.int32())
-    ])
-    df = pd.DataFrame({
-        "a": [1, 2, 3],
-        "b": ["x", "y", "z"]
-    })
+    schema = pa.schema([pa.field("b", pa.string()), pa.field("a", pa.int32())])
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
 
     # Act
     table = _convert_to_arrow_table(df, schema)
@@ -135,14 +128,8 @@ def test_convert_to_arrow_table_reorders_columns(tmp_path):
 def test_convert_to_arrow_table_with_null_values(tmp_path):
     """Verify that None and NaN values are correctly handled."""
     # Arrange
-    schema = pa.schema([
-        pa.field("a", pa.int32()),
-        pa.field("b", pa.float64())
-    ])
-    df = pd.DataFrame({
-        "a": [1, None, 3],
-        "b": [4.0, 5.0, pd.NA]
-    })
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.float64())])
+    df = pd.DataFrame({"a": [1, None, 3], "b": [4.0, 5.0, pd.NA]})
 
     # Act
     table = _convert_to_arrow_table(df, schema)
