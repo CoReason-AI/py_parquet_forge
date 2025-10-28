@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from py_parquet_forge.exceptions import SchemaValidationError
-from py_parquet_forge.main import inspect_schema, write_parquet
+from py_parquet_forge.main import inspect_schema, write_parquet, write_to_dataset
 
 
 def test_write_parquet_success_pandas(tmp_path):
@@ -290,3 +290,109 @@ def test_inspect_schema_dataset_directory(tmp_path):
 
     # Assert
     assert actual_schema.equals(expected_schema_after_read)
+
+
+def test_write_to_dataset_append_mode(tmp_path):
+    """Verify writing in append mode adds new data without removing existing data."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    df1 = pd.DataFrame({"col1": [1, 2]})
+    df2 = pd.DataFrame({"col1": [3, 4]})
+
+    # Act
+    write_to_dataset(df1, output_dir, schema, mode="append")
+    write_to_dataset(df2, output_dir, schema, mode="append")
+
+    # Assert
+    dataset = pq.ParquetDataset(output_dir)
+    table = dataset.read()
+    assert table.num_rows == 4
+    assert sorted(table.column("col1").to_pylist()) == [1, 2, 3, 4]
+
+
+def test_write_to_dataset_overwrite_mode(tmp_path):
+    """Verify writing in overwrite mode removes existing data before writing new data."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    df1 = pd.DataFrame({"col1": [1, 2]})
+    df2 = pd.DataFrame({"col1": [3, 4]})
+
+    # Act
+    write_to_dataset(df1, output_dir, schema, mode="append")  # Initial write
+    write_to_dataset(df2, output_dir, schema, mode="overwrite")  # Overwrite
+
+    # Assert
+    dataset = pq.ParquetDataset(output_dir)
+    table = dataset.read()
+    assert table.num_rows == 2
+    assert sorted(table.column("col1").to_pylist()) == [3, 4]
+
+
+def test_write_to_dataset_with_partitioning(tmp_path):
+    """Verify that data is correctly partitioned into subdirectories."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("value", pa.int64()), ("part", pa.string())])
+    df = pd.DataFrame({"value": [1, 2, 3], "part": ["a", "b", "a"]})
+
+    # Act
+    write_to_dataset(df, output_dir, schema, partition_cols=["part"])
+
+    # Assert
+    part_a_path = output_dir / "part=a"
+    part_b_path = output_dir / "part=b"
+    assert part_a_path.is_dir()
+    assert part_b_path.is_dir()
+
+    # Verify content of partition 'a'
+    table_a = pq.read_table(part_a_path)
+    assert table_a.num_rows == 2
+    assert sorted(table_a.column("value").to_pylist()) == [1, 3]
+
+    # Verify content of partition 'b'
+    table_b = pq.read_table(part_b_path)
+    assert table_b.num_rows == 1
+    assert table_b.column("value").to_pylist() == [2]
+
+
+def test_write_to_dataset_schema_validation_error(tmp_path):
+    """Verify that SchemaValidationError is raised for invalid data."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    df = pd.DataFrame({"col1": ["not-an-int"]})
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        write_to_dataset(df, output_dir, schema)
+    assert not output_dir.exists()
+
+
+def test_write_to_dataset_invalid_mode(tmp_path):
+    """Verify that a ValueError is raised for an invalid mode."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    df = pd.DataFrame({"col1": [1]})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="mode must be either 'append' or 'overwrite'"):
+        write_to_dataset(df, output_dir, schema, mode="invalid_mode")
+
+
+def test_write_to_dataset_pydict_input(tmp_path):
+    """Verify that a list of dictionaries can be written to a dataset."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("id", pa.int64())])
+    data = [{"id": 1}, {"id": 2}]
+
+    # Act
+    write_to_dataset(data, output_dir, schema)
+
+    # Assert
+    table = pq.read_table(output_dir)
+    assert table.num_rows == 2
+    assert table.schema.equals(pa.schema([pa.field("id", pa.int64())]))

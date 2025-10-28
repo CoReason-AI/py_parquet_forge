@@ -9,9 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/py_parquet_forge
 
 import os
+import shutil
 import uuid
 from pathlib import Path
-from typing import Any, TypeAlias, Union
+from typing import Any, List, Optional, TypeAlias, Union
 
 import pandas as pd
 import pyarrow as pa
@@ -126,3 +127,52 @@ def inspect_schema(path: PathLike) -> pa.Schema:
         dataset = pq.ParquetDataset(path_obj)
         return dataset.schema
     return pq.read_schema(path_obj)
+
+
+def write_to_dataset(
+    data: InputData,
+    output_dir: PathLike,
+    schema: PyArrowSchema,
+    partition_cols: Optional[List[str]] = None,
+    mode: str = "append",
+    **kwargs: Any,
+) -> None:
+    """
+    Writes a complete in-memory data object to a partitioned Parquet dataset.
+
+    This function supports appending data to an existing dataset or overwriting it.
+    It provides schema enforcement and partitioning capabilities.
+
+    :param data: The data to write (e.g., pandas.DataFrame, list of dicts).
+    :param output_dir: The root directory of the dataset.
+    :param schema: The pyarrow.Schema to enforce.
+    :param partition_cols: A list of column names to partition the data by.
+    :param mode: Either 'append' (adds new files, default) or 'overwrite'
+                 (deletes existing dataset content before writing).
+    :param kwargs: Additional arguments passed to pyarrow.parquet.write_to_dataset.
+    """
+    if mode not in ["append", "overwrite"]:
+        raise ValueError("mode must be either 'append' or 'overwrite'")
+
+    output_dir_obj = Path(output_dir)
+
+    if output_dir_obj.exists() and mode == "overwrite":
+        try:
+            shutil.rmtree(output_dir_obj)
+            logger.info(f"Overwrite mode: Removed existing dataset at {output_dir_obj}")
+        except OSError as e:
+            logger.error(f"Error removing directory {output_dir_obj}: {e}")
+            raise
+
+    table = _convert_to_arrow_table(data, schema)
+
+    # Only create the directory after schema validation has passed
+    output_dir_obj.mkdir(parents=True, exist_ok=True)
+
+    pq.write_to_dataset(
+        table,
+        root_path=output_dir_obj,
+        partition_cols=partition_cols or [],
+        **kwargs,
+    )
+    logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
