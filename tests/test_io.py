@@ -514,3 +514,119 @@ def test_read_parquet_from_dataset(tmp_path):
     assert sorted(df["value"].tolist()) == [1, 2, 3]
     # In pyarrow datasets, partition columns are added as categorical
     assert df["part"].dtype == "category"
+
+
+def test_write_parquet_success_recordbatch(tmp_path):
+    """Verify writing a pyarrow.RecordBatch to a Parquet file succeeds."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("id", pa.int64())])
+    data = pa.RecordBatch.from_pylist([{"id": 1}, {"id": 2}], schema=schema)
+
+    # Act
+    write_parquet(data, output_path, schema)
+
+    # Assert
+    assert output_path.exists()
+    written_schema = pq.read_schema(output_path)
+    assert written_schema.equals(schema)
+    read_table = pq.read_table(output_path)
+    assert read_table.num_rows == 2
+
+
+def test_write_to_dataset_mkdir_os_error(tmp_path):
+    """Verify that an OSError during directory creation is propagated."""
+    # Arrange
+    output_dir = tmp_path / "nonexistent"
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+        with pytest.raises(OSError, match="Permission denied"):
+            write_to_dataset(data, output_dir, schema)
+
+
+def test_write_parquet_mkdir_os_error(tmp_path):
+    """Verify that an OSError during directory creation is propagated."""
+    # Arrange
+    output_path = tmp_path / "nonexistent" / "test.parquet"
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+        with pytest.raises(OSError, match="Permission denied"):
+            write_parquet(data, output_path, schema)
+
+
+@pytest.mark.parametrize(
+    "unsupported_data",
+    [
+        {"a": 1},  # Raw dictionary, not in a list
+        {1, 2, 3},  # Set
+        "a string",  # Raw string
+    ],
+)
+def test_write_parquet_unsupported_type_error(tmp_path, unsupported_data):
+    """Verify that an unsupported data type raises a SchemaValidationError."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int32())])
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        write_parquet(unsupported_data, output_path, schema)
+
+
+def test_write_parquet_table_different_column_order(tmp_path):
+    """Verify that a table with a different column order is correctly written."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    target_schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+            pa.field("value", pa.string()),
+        ]
+    )
+    # Create a table with columns in a different order
+    data_schema = pa.schema(
+        [
+            pa.field("value", pa.string()),
+            pa.field("id", pa.int64()),
+        ]
+    )
+    data = pa.Table.from_pylist(
+        [
+            {"value": "a", "id": 1},
+            {"value": "b", "id": 2},
+        ],
+        schema=data_schema,
+    )
+
+    # Act
+    write_parquet(data, output_path, target_schema)
+
+    # Assert
+    assert output_path.exists()
+    written_table = pq.read_table(output_path)
+    assert written_table.schema.equals(target_schema)
+    assert written_table.num_rows == 2
+
+
+def test_write_parquet_success_table_matching_schema(tmp_path):
+    """Verify writing a pyarrow.Table with a matching schema succeeds."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("id", pa.int64())])
+    data = pa.Table.from_pylist([{"id": 1}, {"id": 2}], schema=schema)
+
+    # Act
+    write_parquet(data, output_path, schema)
+
+    # Assert
+    assert output_path.exists()
+    written_schema = pq.read_schema(output_path)
+    assert written_schema.equals(schema)
+    read_table = pq.read_table(output_path)
+    assert read_table.num_rows == 2
