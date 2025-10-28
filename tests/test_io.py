@@ -560,11 +560,14 @@ def test_write_parquet_mkdir_os_error(tmp_path):
             write_parquet(data, output_path, schema)
 
 
-@pytest.mark.parametrize("unsupported_data", [
-    {"a": 1},  # Raw dictionary, not in a list
-    {1, 2, 3},  # Set
-    "a string", # Raw string
-])
+@pytest.mark.parametrize(
+    "unsupported_data",
+    [
+        {"a": 1},  # Raw dictionary, not in a list
+        {1, 2, 3},  # Set
+        "a string",  # Raw string
+    ],
+)
 def test_write_parquet_unsupported_type_error(tmp_path, unsupported_data):
     """Verify that an unsupported data type raises a SchemaValidationError."""
     # Arrange
