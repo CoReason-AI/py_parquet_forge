@@ -16,7 +16,12 @@ import pyarrow.parquet as pq
 import pytest
 
 from py_parquet_forge.exceptions import SchemaValidationError
-from py_parquet_forge.main import inspect_schema, write_parquet, write_to_dataset
+from py_parquet_forge.main import (
+    inspect_schema,
+    read_parquet,
+    write_parquet,
+    write_to_dataset,
+)
 
 
 def test_write_parquet_success_pandas(tmp_path):
@@ -410,3 +415,102 @@ def test_write_to_dataset_overwrite_os_error(tmp_path):
     with patch("shutil.rmtree", side_effect=OSError("Permission denied")):
         with pytest.raises(OSError, match="Permission denied"):
             write_to_dataset(df, output_dir, schema, mode="overwrite")
+
+
+def test_read_parquet_pandas_output(tmp_path):
+    """Verify reading a Parquet file to a pandas DataFrame."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64())])
+    write_parquet([{"a": 1}], output_path, schema)
+
+    # Act
+    df = read_parquet(output_path, output_format="pandas")
+
+    # Assert
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (1, 1)
+    assert df["a"][0] == 1
+
+
+def test_read_parquet_arrow_output(tmp_path):
+    """Verify reading a Parquet file to a pyarrow Table."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64())])
+    write_parquet([{"a": 1}], output_path, schema)
+
+    # Act
+    table = read_parquet(output_path, output_format="arrow")
+
+    # Assert
+    assert isinstance(table, pa.Table)
+    assert table.num_rows == 1
+    assert table.schema.equals(schema)
+
+
+def test_read_parquet_with_column_projection(tmp_path):
+    """Verify that only specified columns are read."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64()), ("b", pa.string())])
+    write_parquet([{"a": 1, "b": "x"}], output_path, schema)
+
+    # Act
+    df = read_parquet(output_path, columns=["a"])
+
+    # Assert
+    assert "a" in df.columns
+    assert "b" not in df.columns
+
+
+def test_read_parquet_with_filters(tmp_path):
+    """Verify that rows are filtered correctly."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("value", pa.int64())])
+    data = [{"value": 10}, {"value": 20}, {"value": 30}]
+    write_parquet(data, output_path, schema)
+
+    # Act
+    df = read_parquet(output_path, filters=[("value", ">", 15)])
+
+    # Assert
+    assert len(df) == 2
+    assert sorted(df["value"].tolist()) == [20, 30]
+
+
+def test_read_parquet_invalid_output_format(tmp_path):
+    """Verify that a ValueError is raised for an invalid output format."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64())])
+    write_parquet([{"a": 1}], output_path, schema)
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match="output_format must be either 'pandas' or 'arrow'"
+    ):
+        read_parquet(output_path, output_format="invalid_format")
+
+
+def test_read_parquet_from_dataset(tmp_path):
+    """Verify reading from a partitioned dataset works correctly."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("value", pa.int64()), ("part", pa.string())])
+    data = [
+        {"value": 1, "part": "a"},
+        {"value": 2, "part": "b"},
+        {"value": 3, "part": "a"},
+    ]
+    write_to_dataset(data, output_dir, schema, partition_cols=["part"])
+
+    # Act
+    df = read_parquet(output_dir)
+
+    # Assert
+    assert len(df) == 3
+    assert sorted(df["value"].tolist()) == [1, 2, 3]
+    # In pyarrow datasets, partition columns are added as categorical
+    assert df["part"].dtype == "category"
