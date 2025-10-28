@@ -10,6 +10,7 @@ packages = [{include = "py_parquet_forge", from = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.11"
 loguru = "^0.7.2"
+pyarrow = "^16.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -43,3 +44,6 @@ classifiers = [
 Homepage = "https://github.com/CoReason-AI/py_parquet_forge"
 Repository = "https://github.com/CoReason-AI/py_parquet_forge"
 Documentation = "https://github.com/CoReason-AI/py_parquet_forge"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
