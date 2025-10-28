@@ -1,0 +1,5 @@
+site_name: py_parquet_forge
+theme:
+  name: material
+nav:
+  - Home: index.md
