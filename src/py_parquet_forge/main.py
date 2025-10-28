@@ -202,9 +202,7 @@ def read_parquet(
     if output_format not in ["pandas", "arrow"]:
         raise ValueError("output_format must be either 'pandas' or 'arrow'")
 
-    table = pq.read_table(
-        input_path, columns=columns, filters=filters, **kwargs
-    )
+    table = pq.read_table(input_path, columns=columns, filters=filters, **kwargs)
 
     if output_format == "pandas":
         return table.to_pandas()

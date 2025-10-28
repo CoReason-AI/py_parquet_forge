@@ -488,7 +488,9 @@ def test_read_parquet_invalid_output_format(tmp_path):
     write_parquet([{"a": 1}], output_path, schema)
 
     # Act & Assert
-    with pytest.raises(ValueError, match="output_format must be either 'pandas' or 'arrow'"):
+    with pytest.raises(
+        ValueError, match="output_format must be either 'pandas' or 'arrow'"
+    ):
         read_parquet(output_path, output_format="invalid_format")
 
 
