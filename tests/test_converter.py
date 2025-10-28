@@ -81,6 +81,67 @@ def test_convert_to_arrow_table_schema_already_correct(tmp_path):
     assert table.schema.equals(schema)
 
 
+def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path):
+    """Verify SchemaValidationError is raised when a column is missing."""
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
+    df = pd.DataFrame({"a": [1, 2, 3]})  # Missing column "b"
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        _convert_to_arrow_table(df, schema)
+
+
+def test_convert_to_arrow_table_ignores_extra_columns(tmp_path):
+    """Verify that extra columns in the input data are correctly ignored."""
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32())])
+    df = pd.DataFrame(
+        {
+            "a": [1, 2, 3],
+            "b": [4, 5, 6],  # Extra column "b"
+        }
+    )
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert "b" not in table.schema.names
+
+
+def test_convert_to_arrow_table_reorders_columns(tmp_path):
+    """Verify that columns are correctly reordered to match the schema."""
+    # Arrange
+    schema = pa.schema([pa.field("b", pa.string()), pa.field("a", pa.int32())])
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.column_names == ["b", "a"]
+
+
+def test_convert_to_arrow_table_with_null_values(tmp_path):
+    """Verify that None and NaN values are correctly handled."""
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.float64())])
+    df = pd.DataFrame({"a": [1, None, 3], "b": [4.0, 5.0, pd.NA]})
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.column("a").to_pylist() == [1, None, 3]
+    assert table.column("b").to_pylist()[0] == 4.0
+    assert table.column("b").to_pylist()[1] == 5.0
+    assert pd.isna(table.column("b").to_pylist()[2])
+
+
 def test_convert_to_arrow_table_schema_validation_error(tmp_path):
     """Verify SchemaValidationError is raised for incompatible schemas."""
     # Arrange
