@@ -220,6 +220,40 @@ def test_inspect_schema_invalid_file(tmp_path):
         inspect_schema(invalid_file)
 
 
+def test_write_parquet_empty_pydict(tmp_path):
+    """Verify that an empty list of dicts can be written to a Parquet file."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = []
+
+    # Act
+    write_parquet(data, output_path, schema)
+
+    # Assert
+    assert output_path.exists()
+    written_schema = pq.read_schema(output_path)
+    assert written_schema.equals(schema)
+    read_table = pq.read_table(output_path)
+    assert read_table.num_rows == 0
+
+
+def test_write_parquet_path_with_spaces(tmp_path):
+    """Verify writing to a path with spaces succeeds."""
+    # Arrange
+    output_path = tmp_path / "path with spaces" / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act
+    write_parquet(data, output_path, schema)
+
+    # Assert
+    assert output_path.exists()
+    read_table = pq.read_table(output_path)
+    assert read_table.num_rows == 1
+
+
 def test_inspect_schema_dataset_directory(tmp_path):
     """Verify that inspect_schema correctly reads the schema from a dataset directory."""
     # Arrange
