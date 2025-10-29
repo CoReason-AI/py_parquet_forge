@@ -23,10 +23,12 @@ from .main import (
     read_parquet,
     read_parquet_iter,
     write_parquet,
+    write_to_dataset,
 )
 
 __all__ = [
     "write_parquet",
+    "write_to_dataset",
     "inspect_schema",
     "read_parquet",
     "read_parquet_iter",
