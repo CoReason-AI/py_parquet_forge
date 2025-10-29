@@ -783,7 +783,9 @@ def test_file_handle_is_released_after_inspect_schema(tmp_path):
     try:
         write_parquet([{"a": 2}], output_path, schema)
     except PermissionError:
-        pytest.fail("PermissionError raised: inspect_schema did not release file handle.")
+        pytest.fail(
+            "PermissionError raised: inspect_schema did not release file handle."
+        )
 
 
 def test_write_parquet_success_table_matching_schema(tmp_path):
