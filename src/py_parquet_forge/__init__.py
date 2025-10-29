@@ -6,7 +6,7 @@
 # For details, see the LICENSE file.
 # Commercial use beyond a 30-day trial requires a separate license.
 #
-# Source Code: https://github.com/CoReason-AI/py_parquet_forget
+# Source Code: https://github.com/CoReason-AI/py_parquet_forge
 
 """
 A Python utility for standardizing high-performance serialization of in-memory data objects into local Apache Parquet files. Built on PyArrow, it provides memory-efficient streaming, atomic writes, and schema-enforced dataset management.
