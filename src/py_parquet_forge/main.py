@@ -168,6 +168,13 @@ def write_to_dataset(
 
     table = _convert_to_arrow_table(data, schema)
 
+    # Pre-validate that partition columns exist in the schema
+    if partition_cols:
+        schema_cols = set(table.schema.names)
+        for col in partition_cols:
+            if col not in schema_cols:
+                raise pa.ArrowInvalid(f"Partition column '{col}' not in schema")
+
     # Only create the directory after schema validation has passed
     output_dir_obj.mkdir(parents=True, exist_ok=True)
 
