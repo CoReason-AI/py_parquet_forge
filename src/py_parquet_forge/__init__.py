@@ -17,7 +17,13 @@ __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
 from .exceptions import SchemaValidationError
-from .main import inspect_schema, read_parquet, read_parquet_iter, write_parquet
+from .main import (
+    ParquetStreamWriter,
+    inspect_schema,
+    read_parquet,
+    read_parquet_iter,
+    write_parquet,
+)
 
 __all__ = [
     "write_parquet",
@@ -25,4 +31,5 @@ __all__ = [
     "read_parquet",
     "read_parquet_iter",
     "SchemaValidationError",
+    "ParquetStreamWriter",
 ]
