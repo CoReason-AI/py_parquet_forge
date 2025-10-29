@@ -92,6 +92,61 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_handles_pandas_metadata_difference():
+    """
+    Verify that conversion succeeds even if the initial Arrow schema from pandas
+    differs from the target schema only by metadata.
+    """
+    # Arrange
+    # pa.Table.from_pandas adds {'pandas': ...} metadata to the schema
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    # Our target schema is identical in structure but lacks the pandas metadata
+    schema = pa.schema([pa.field("a", pa.int64())])
+
+    # Act
+    # The function should detect the schemas are not equal and proceed to cast,
+    # resulting in a table with the target schema.
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+
+
+def test_convert_to_arrow_table_pydict_successful_cast():
+    """
+    Verify that a pydict is successfully cast to a different but compatible
+    numeric type.
+    """
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.float64())])
+    # pyarrow will infer int64 for this list
+    data = [{"a": 1}, {"a": 2}, {"a": 3}]
+
+    # Act
+    table = _convert_to_arrow_table(data, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert pa.types.is_float64(table.column("a").type)
+    assert table.column("a").to_pylist() == [1.0, 2.0, 3.0]
+
+
+def test_convert_to_arrow_table_pydict_internal_type_error():
+    """
+    Verify SchemaValidationError is raised when a pydict contains a value
+    that pyarrow cannot convert at all (e.g., a set), triggering an internal
+    ArrowTypeError.
+    """
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32())])
+    # A 'set' is not a type that pyarrow can handle during conversion
+    data = [{"a": 1}, {"a": {2, 3}}]
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        _convert_to_arrow_table(data, schema)
+
+
 def test_convert_to_arrow_table_pydict_schema_validation_error(tmp_path):
     """
     Verify SchemaValidationError is raised for a pydict with an incompatible schema.
