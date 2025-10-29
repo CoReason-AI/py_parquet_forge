@@ -1,4 +1,4 @@
-# Copyright (c) 2025 CoReason, Inc.
+# Copyright (c) 2025 CoReason, Inc
 #
 # This software is proprietary and dual-licensed.
 # Licensed under the Prosperity Public License 3.0 (the "License").
@@ -6,7 +6,7 @@
 # For details, see the LICENSE file.
 # Commercial use beyond a 30-day trial requires a separate license.
 #
-# Source Code: https://github.com/CoReason-AI/py_parquet_forge
+# Source Code: https://github.com/CoReason-AI/py_parquet_forget
 
 import pyarrow as pa
 import pytest
