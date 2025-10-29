@@ -148,3 +148,21 @@ def test_stream_writer_cleanup_os_error_on_exception(tmp_path):
 
     # The file may still exist since the cleanup failed, so we can check for that.
     assert output_path.exists()
+
+
+def test_stream_writer_write_after_exit(tmp_path):
+    """Verify that writing to a closed writer raises an IOError."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = [{"a": 1}]
+    writer_instance = ParquetStreamWriter(output_path, schema)
+
+    # Act
+    with writer_instance:
+        writer_instance.write_chunk(data)
+
+    # Assert
+    # At this point, the context manager has exited and the writer should be closed.
+    with pytest.raises(IOError, match="Cannot write to a closed writer"):
+        writer_instance.write_chunk(data)
