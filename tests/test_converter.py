@@ -92,6 +92,22 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_mixed_type_object_column_error(tmp_path):
+    """
+    Verify SchemaValidationError is raised for a DataFrame with a mixed-type
+    object column that cannot be cast to the target schema.
+    """
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int64())])
+    # This DataFrame column will have dtype 'object' due to mixed types.
+    # pyarrow will fail when trying to convert "two" to an integer.
+    df = pd.DataFrame({"a": [1, "two", 3]})
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        _convert_to_arrow_table(df, schema)
+
+
 def test_convert_to_arrow_table_from_empty_dataframe(tmp_path):
     """Verify that an empty pandas DataFrame is correctly converted."""
     # Arrange
