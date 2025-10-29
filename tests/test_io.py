@@ -92,6 +92,23 @@ def test_write_parquet_schema_validation_error(tmp_path):
     assert not output_path.exists()
 
 
+def test_write_parquet_schema_validation_error_missing_column(tmp_path):
+    """Verify SchemaValidationError is raised for data missing a required column."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    # Schema requires 'a' and 'b'
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
+    # Data is missing column 'b'
+    df = pd.DataFrame({"a": [1, 2, 3]})
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        write_parquet(df, output_path, schema)
+
+    # Assert that no file was created
+    assert not output_path.exists()
+
+
 def test_write_parquet_atomicity_on_failure(tmp_path):
     """Verify that no partial file is left if writing fails mid-way."""
     # Arrange
