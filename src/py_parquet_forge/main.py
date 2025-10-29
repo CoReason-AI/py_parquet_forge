@@ -16,6 +16,7 @@ from typing import Any, Iterator, List, Optional, TypeAlias, Union
 
 import pandas as pd
 import pyarrow as pa
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from loguru import logger
 
@@ -229,4 +230,16 @@ def read_parquet_iter(
     :param kwargs: Additional arguments passed to the underlying pyarrow functions.
     :return: An iterator of pyarrow.RecordBatch objects.
     """
-    raise NotImplementedError
+    # Use the `pyarrow.dataset` module for robust scanning
+    dataset = ds.dataset(input_path, format="parquet", partitioning="hive", **kwargs)
+
+    # The scanner provides fine-grained control over reading
+    scanner = dataset.scanner(
+        columns=columns,
+        filter=filters,
+        batch_size=chunk_size,
+    )
+
+    # Iterate over the scanner to yield record batches
+    for batch in scanner.to_reader():
+        yield batch
