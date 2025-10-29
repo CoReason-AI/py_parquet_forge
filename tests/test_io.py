@@ -407,6 +407,22 @@ def test_write_to_dataset_pydict_input(tmp_path):
     assert table.schema.equals(pa.schema([pa.field("id", pa.int64())]))
 
 
+def test_write_to_dataset_empty_input(tmp_path):
+    """Verify writing empty data creates the directory but no files."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+    empty_df = pd.DataFrame({"col1": []})
+
+    # Act
+    write_to_dataset(empty_df, output_dir, schema)
+
+    # Assert
+    assert output_dir.is_dir()
+    # Pyarrow does not write any files (including metadata) for an empty table
+    assert not any(output_dir.iterdir())
+
+
 def test_write_to_dataset_overwrite_os_error(tmp_path):
     """Verify that an OSError during directory removal is propagated."""
     # Arrange
