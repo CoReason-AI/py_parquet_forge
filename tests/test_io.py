@@ -564,6 +564,27 @@ def test_write_parquet_success_recordbatch(tmp_path):
     assert read_table.num_rows == 2
 
 
+def test_write_parquet_table_needs_cast(tmp_path):
+    """Verify writing a table that requires schema casting succeeds."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    # Define a target schema with int64
+    target_schema = pa.schema([pa.field("id", pa.int64())])
+    # Create data with a schema that can be cast (int32)
+    data_schema = pa.schema([pa.field("id", pa.int32())])
+    data = pa.Table.from_pylist([{"id": 1}, {"id": 2}], schema=data_schema)
+
+    # Act
+    write_parquet(data, output_path, target_schema)
+
+    # Assert
+    assert output_path.exists()
+    written_table = pq.read_table(output_path)
+    # The written schema must match the target schema, not the source
+    assert written_table.schema.equals(target_schema)
+    assert written_table.num_rows == 2
+
+
 def test_write_parquet_kwargs_pass_through(tmp_path):
     """Verify that kwargs are passed to the underlying pyarrow writer."""
     # Arrange
