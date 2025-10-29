@@ -24,3 +24,14 @@ def test_raise_schema_validation_error():
     with pytest.raises(SchemaValidationError) as excinfo:
         raise SchemaValidationError("This is a test error.")
     assert "This is a test error." in str(excinfo.value)
+
+
+def test_schema_validation_error_can_be_caught_as_arrow_exception():
+    """Verify that SchemaValidationError can be caught via its base class."""
+    try:
+        raise SchemaValidationError("Test message")
+    except pa.ArrowException as e:
+        assert isinstance(e, SchemaValidationError)
+        assert "Test message" in str(e)
+    except Exception as e:
+        pytest.fail(f"Exception was not caught as ArrowException, but as {type(e)}")
