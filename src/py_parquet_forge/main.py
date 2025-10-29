@@ -126,14 +126,21 @@ def inspect_schema(path: PathLike) -> pa.Schema:
     """
     Reads the schema from a Parquet file or dataset.
 
+    This function ensures that file handles are properly closed to avoid
+    file locking issues, particularly on Windows.
+
     :param path: The path to the Parquet file or dataset directory.
     :return: The pyarrow.Schema object from the file/dataset metadata.
     """
     path_obj = Path(path)
     if path_obj.is_dir():
+        # ParquetDataset handles its own resources
         dataset = pq.ParquetDataset(path_obj)
         return dataset.schema
-    return pq.read_schema(path_obj)
+
+    # For single files, use a context manager to ensure the file handle is released
+    with pq.ParquetFile(path_obj) as parquet_file:
+        return parquet_file.schema.to_arrow_schema()
 
 
 def write_to_dataset(

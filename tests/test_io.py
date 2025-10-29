@@ -762,6 +762,30 @@ def test_write_parquet_table_different_column_order(tmp_path):
     assert written_table.num_rows == 2
 
 
+@pytest.mark.skipif(
+    "sys.platform != 'win32'", reason="File locking is primarily a Windows concern"
+)
+def test_file_handle_is_released_after_inspect_schema(tmp_path):
+    """
+    Verify that inspect_schema releases its file handle, allowing the file
+    to be immediately overwritten. This is critical on Windows.
+    """
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64())])
+    write_parquet([{"a": 1}], output_path, schema)
+
+    # Act
+    # Inspect the schema, which on Windows could lock the file if not handled correctly.
+    _ = inspect_schema(output_path)
+
+    # Assert: The file should be immediately overwritable without a PermissionError
+    try:
+        write_parquet([{"a": 2}], output_path, schema)
+    except PermissionError:
+        pytest.fail("PermissionError raised: inspect_schema did not release file handle.")
+
+
 def test_write_parquet_success_table_matching_schema(tmp_path):
     """Verify writing a pyarrow.Table with a matching schema succeeds."""
     # Arrange
