@@ -136,7 +136,9 @@ def test_stream_writer_cleanup_os_error_on_exception(tmp_path):
 
     # Act & Assert
     with patch("os.remove", side_effect=cleanup_error):
-        with pytest.raises(ValueError, match="Original error inside with block") as excinfo:
+        with pytest.raises(
+            ValueError, match="Original error inside with block"
+        ) as excinfo:
             with ParquetStreamWriter(output_path, schema) as writer:
                 writer.write_chunk(data)
                 raise original_error
