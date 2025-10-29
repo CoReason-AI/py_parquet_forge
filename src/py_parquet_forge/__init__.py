@@ -1,4 +1,4 @@
-# Copyright (c) 2025 CoReason, Inc.
+# Copyright (c) 2025 CoReason, Inc
 #
 # This software is proprietary and dual-licensed.
 # Licensed under the Prosperity Public License 3.0 (the "License").
@@ -16,6 +16,20 @@ __version__ = "0.1.0"
 __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
-from .main import hello_world
+from .exceptions import SchemaValidationError
+from .main import (
+    ParquetStreamWriter,
+    inspect_schema,
+    read_parquet,
+    read_parquet_iter,
+    write_parquet,
+)
 
-__all__ = ["hello_world"]
+__all__ = [
+    "write_parquet",
+    "inspect_schema",
+    "read_parquet",
+    "read_parquet_iter",
+    "SchemaValidationError",
+    "ParquetStreamWriter",
+]
