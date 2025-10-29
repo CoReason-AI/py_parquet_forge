@@ -25,9 +25,7 @@ def sample_parquet_file(tmp_path):
             pa.field("value", pa.string()),
         ]
     )
-    data = [
-        {"id": i, "value": f"value_{i}"} for i in range(100)
-    ]
+    data = [{"id": i, "value": f"value_{i}"} for i in range(100)]
     write_parquet(data, file_path, schema)
     return file_path
 
@@ -42,9 +40,7 @@ def sample_partitioned_dataset(tmp_path):
             pa.field("partition_key", pa.string()),
         ]
     )
-    data = [
-        {"id": i, "partition_key": "A" if i < 50 else "B"} for i in range(100)
-    ]
+    data = [{"id": i, "partition_key": "A" if i < 50 else "B"} for i in range(100)]
     write_to_dataset(data, dataset_path, schema, partition_cols=["partition_key"])
     return dataset_path
 
