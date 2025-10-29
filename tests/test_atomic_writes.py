@@ -16,7 +16,6 @@ import pyarrow as pa
 import pytest
 
 from py_parquet_forge.main import write_parquet
-from py_parquet_forge.exceptions import SchemaValidationError
 
 TEST_SCHEMA = pa.schema([pa.field("id", pa.int64()), pa.field("name", pa.string())])
 TEST_DATA = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
@@ -38,3 +37,20 @@ def test_write_parquet_atomic_success(tmp_path: Path):
         # 3. Check that no temporary files are left
         temp_files = list(tmp_path.glob("*.tmp"))
         assert not temp_files, f"Temporary files found: {temp_files}"
+
+
+def test_write_parquet_atomic_failure_cleanup(tmp_path: Path):
+    """Verifies that write_parquet cleans up the temporary file on write failure."""
+    output_file = tmp_path / "test.parquet"
+
+    # Simulate an error during the write operation
+    with patch("pyarrow.parquet.write_table", side_effect=IOError("Disk full")):
+        with pytest.raises(IOError):
+            write_parquet(TEST_DATA, output_file, TEST_SCHEMA)
+
+    # Check that no temporary files are left
+    temp_files = list(tmp_path.glob("*.tmp"))
+    assert not temp_files, f"Temporary files found after failure: {temp_files}"
+
+    # Check that the original file was not created or modified
+    assert not output_file.exists()
