@@ -166,3 +166,19 @@ def test_read_parquet_iter_chunk_size_larger_than_file(tmp_path):
     assert len(batches) == 1
     assert total_rows_read == row_count
     assert batches[0].num_rows == row_count
+
+
+def test_read_parquet_iter_invalid_filter_type(tmp_path):
+    """Verify that an invalid filter type raises an appropriate error."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("value", pa.int64())])
+    write_parquet([{"value": 10}], output_path, schema)
+
+    # Act & Assert
+    # The modern `pyarrow.dataset` API requires a compute expression, not a list of tuples.
+    # We expect this to fail with a TypeError or ArrowInvalid error.
+    with pytest.raises((TypeError, pa.ArrowInvalid)):
+        # This is the old, unsupported filter format for this function
+        invalid_filters = [("value", ">", 5)]
+        list(read_parquet_iter(output_path, filters=invalid_filters))

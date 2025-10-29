@@ -454,6 +454,18 @@ def test_write_to_dataset_overwrite_os_error(tmp_path):
             write_to_dataset(df, output_dir, schema, mode="overwrite")
 
 
+def test_write_to_dataset_invalid_partition_column(tmp_path):
+    """Verify that an error is raised when a partition column does not exist."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    with pytest.raises(pa.ArrowInvalid, match="Partition column 'non_existent_col' not in schema"):
+        write_to_dataset(data, output_dir, schema, partition_cols=["non_existent_col"])
+
+
 def test_read_parquet_pandas_output(tmp_path):
     """Verify reading a Parquet file to a pandas DataFrame."""
     # Arrange
