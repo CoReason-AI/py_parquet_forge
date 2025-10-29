@@ -8,6 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/py_parquet_forget
 
+from unittest.mock import patch
+
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -121,3 +123,28 @@ def test_stream_writer_exception_handling_cleanup(tmp_path):
 
     # Assert that the file was cleaned up
     assert not output_path.exists()
+
+
+def test_stream_writer_cleanup_os_error_on_exception(tmp_path):
+    """Verify that an OSError during cleanup is logged but the original error is propagated."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = [{"a": 1}]
+    original_error = ValueError("Original error inside with block")
+    cleanup_error = OSError("Permission denied during cleanup")
+
+    # Act & Assert
+    with patch("os.remove", side_effect=cleanup_error):
+        with pytest.raises(
+            ValueError, match="Original error inside with block"
+        ) as excinfo:
+            with ParquetStreamWriter(output_path, schema) as writer:
+                writer.write_chunk(data)
+                raise original_error
+
+    # Verify that the original exception was propagated, not the cleanup OSError.
+    assert excinfo.value is original_error
+
+    # The file may still exist since the cleanup failed, so we can check for that.
+    assert output_path.exists()
