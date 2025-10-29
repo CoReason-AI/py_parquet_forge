@@ -92,6 +92,46 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_from_empty_dataframe(tmp_path):
+    """Verify that an empty pandas DataFrame is correctly converted."""
+    # Arrange
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+            pa.field("name", pa.string()),
+        ]
+    )
+    df = pd.DataFrame({"id": [], "name": []})
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.num_rows == 0
+
+
+def test_convert_to_arrow_table_with_all_null_values(tmp_path):
+    """Verify that a DataFrame with all null values is handled correctly."""
+    # Arrange
+    schema = pa.schema(
+        [
+            pa.field("a", pa.int32()),
+            pa.field("b", pa.float64()),
+        ]
+    )
+    df = pd.DataFrame({"a": [None, None], "b": [pd.NA, pd.NA]})
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.num_rows == 2
+    assert table.column("a").null_count == 2
+    assert table.column("b").null_count == 2
+
+
 def test_convert_to_arrow_table_ignores_extra_columns(tmp_path):
     """Verify that extra columns in the input data are correctly ignored."""
     # Arrange

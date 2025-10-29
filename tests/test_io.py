@@ -479,6 +479,36 @@ def test_read_parquet_with_filters(tmp_path):
     assert len(df) == 2
     assert sorted(df["value"].tolist()) == [20, 30]
 
+    # Act
+    table = read_parquet(
+        output_path, filters=[("value", ">", 15)], output_format="arrow"
+    )
+
+    # Assert
+    assert isinstance(table, pa.Table)
+    assert table.num_rows == 2
+    assert sorted(table.column("value").to_pylist()) == [20, 30]
+
+
+def test_write_parquet_with_na_values(tmp_path):
+    """Verify that pd.NA values are correctly handled."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.float64())])
+    df = pd.DataFrame({"a": [1, pd.NA, 3], "b": [4.0, 5.0, pd.NA]})
+
+    # Act
+    write_parquet(df, output_path, schema)
+
+    # Assert
+    assert output_path.exists()
+    table = pq.read_table(output_path)
+    assert table.schema.equals(schema)
+    assert table.column("a").to_pylist() == [1, None, 3]
+    assert table.column("b").to_pylist()[0] == 4.0
+    assert table.column("b").to_pylist()[1] == 5.0
+    assert pd.isna(table.column("b").to_pylist()[2])
+
 
 def test_read_parquet_invalid_output_format(tmp_path):
     """Verify that a ValueError is raised for an invalid output format."""
