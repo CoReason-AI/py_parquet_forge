@@ -564,6 +564,35 @@ def test_write_parquet_success_recordbatch(tmp_path):
     assert read_table.num_rows == 2
 
 
+def test_write_parquet_kwargs_pass_through(tmp_path):
+    """Verify that kwargs are passed to the underlying pyarrow writer."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int64())])
+    data = [{"a": 1}]
+
+    # Act: Write with statistics disabled
+    write_parquet(data, output_path, schema, write_statistics=False)
+
+    # Assert: No statistics should be present
+    assert output_path.exists()
+    parquet_file = pq.ParquetFile(output_path)
+    metadata = parquet_file.metadata
+    assert metadata.num_row_groups == 1
+    column_chunk = metadata.row_group(0).column(0)
+    assert column_chunk.statistics is None
+
+    # Act: Write again with statistics enabled (default behavior)
+    write_parquet(data, output_path, schema)  # Let it use the default
+
+    # Assert: Statistics should now be present
+    parquet_file_with_stats = pq.ParquetFile(output_path)
+    metadata_with_stats = parquet_file_with_stats.metadata
+    column_chunk_with_stats = metadata_with_stats.row_group(0).column(0)
+    assert column_chunk_with_stats.statistics is not None
+    assert column_chunk_with_stats.statistics.has_min_max
+
+
 def test_write_to_dataset_mkdir_os_error(tmp_path):
     """Verify that an OSError during directory creation is propagated."""
     # Arrange
