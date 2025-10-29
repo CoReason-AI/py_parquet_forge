@@ -136,17 +136,21 @@ def test_write_parquet_os_error_on_cleanup(tmp_path):
 
 
 def test_write_parquet_exception_on_replace(tmp_path):
-    """Verify that an exception during replace is handled correctly."""
+    """Verify that an exception during replace is handled correctly and the temp file is cleaned up."""
     # Arrange
     output_path = tmp_path / "test.parquet"
     schema = pa.schema([pa.field("a", pa.int32())])
     df = pd.DataFrame({"a": [1]})
 
-    # Mock os.replace to raise an exception
-    with patch("os.replace", side_effect=Exception("Test exception")):
+    # Mock os.replace to raise an exception to trigger the finally block
+    with patch("os.replace", side_effect=IOError("Move failed")):
         # Act & Assert
-        with pytest.raises(Exception):
+        with pytest.raises(IOError):
             write_parquet(df, output_path, schema)
+
+    # Assert that the temporary file was successfully cleaned up
+    temp_files = list(tmp_path.glob("*.tmp"))
+    assert not temp_files, f"Temp files were not cleaned up: {temp_files}"
 
 
 def test_write_parquet_overwrites_existing_file(tmp_path):
