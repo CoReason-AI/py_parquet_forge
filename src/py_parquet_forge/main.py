@@ -243,3 +243,84 @@ def read_parquet_iter(
     # Iterate over the scanner to yield record batches
     for batch in scanner.to_reader():
         yield batch
+
+
+class ParquetStreamWriter:
+    """
+    A context manager for writing large datasets in chunks to a single Parquet file.
+
+    This class provides a memory-efficient way to serialize data by writing it
+    in sequential chunks. It enforces a consistent schema across all chunks.
+
+    Usage:
+        with ParquetStreamWriter(output_path, schema) as writer:
+            writer.write_chunk(chunk1)
+            writer.write_chunk(chunk2)
+    """
+
+    def __init__(
+        self, output_path: PathLike, schema: PyArrowSchema, **kwargs: Any
+    ) -> None:
+        """
+        Initializes the ParquetStreamWriter.
+
+        This will create a pyarrow.parquet.ParquetWriter and open the file for
+        writing. The file at output_path will be overwritten if it already exists.
+
+        :param output_path: The destination file path.
+        :param schema: The pyarrow.Schema to enforce for all chunks.
+        :param kwargs: Additional arguments passed to pyarrow.parquet.ParquetWriter.
+        """
+        self.schema = schema
+        self._output_path = Path(output_path)
+        self._writer_kwargs = kwargs
+        self._writer: Optional[pq.ParquetWriter] = None
+
+        # Ensure the output directory exists before opening the writer
+        self._output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def write_chunk(self, data: InputData) -> None:
+        """
+        Writes a single chunk of data to the Parquet file.
+
+        The data is converted to a pyarrow.Table and validated against the
+        schema provided in the constructor before being written.
+
+        :param data: The chunk of data to write.
+        :raises SchemaValidationError: If the chunk's schema is incompatible.
+        """
+        if self._writer is None:
+            raise IOError("Cannot write to a closed writer. Use within a 'with' block.")
+        table = _convert_to_arrow_table(data, self.schema)
+        self._writer.write_table(table)
+
+    def __enter__(self) -> "ParquetStreamWriter":
+        """Enters the context manager, opening the Parquet file for writing."""
+        self._writer = pq.ParquetWriter(
+            self._output_path, self.schema, **self._writer_kwargs
+        )
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        """
+        Exits the context manager, ensuring the Parquet writer is closed.
+
+        This finalizes the Parquet file, writing the necessary metadata and footer.
+        It must be called to produce a valid file.
+        """
+        if self._writer:
+            self._writer.close()
+            self._writer = None
+
+        # If an exception was raised within the 'with' block, clean up the created file.
+        if exc_type is not None and self._output_path.exists():
+            try:
+                os.remove(self._output_path)
+                logger.debug(
+                    f"Removed partially written file {self._output_path} due to an exception."
+                )
+            except OSError as e:
+                # Log the error, but don't re-raise, as the original exception is more important.
+                logger.error(
+                    f"Error removing partially written file {self._output_path}: {e}"
+                )
