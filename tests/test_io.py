@@ -92,6 +92,23 @@ def test_write_parquet_schema_validation_error(tmp_path):
     assert not output_path.exists()
 
 
+def test_write_parquet_schema_validation_error_missing_column(tmp_path):
+    """Verify SchemaValidationError is raised for data missing a required column."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    # Schema requires 'a' and 'b'
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
+    # Data is missing column 'b'
+    df = pd.DataFrame({"a": [1, 2, 3]})
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        write_parquet(df, output_path, schema)
+
+    # Assert that no file was created
+    assert not output_path.exists()
+
+
 def test_write_parquet_atomicity_on_failure(tmp_path):
     """Verify that no partial file is left if writing fails mid-way."""
     # Arrange
@@ -437,6 +454,20 @@ def test_write_to_dataset_overwrite_os_error(tmp_path):
             write_to_dataset(df, output_dir, schema, mode="overwrite")
 
 
+def test_write_to_dataset_invalid_partition_column(tmp_path):
+    """Verify that an error is raised when a partition column does not exist."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    with pytest.raises(
+        pa.ArrowInvalid, match="Partition column 'non_existent_col' not in schema"
+    ):
+        write_to_dataset(data, output_dir, schema, partition_cols=["non_existent_col"])
+
+
 def test_read_parquet_pandas_output(tmp_path):
     """Verify reading a Parquet file to a pandas DataFrame."""
     # Arrange
@@ -584,6 +615,23 @@ def test_write_parquet_success_recordbatch(tmp_path):
     assert read_table.num_rows == 2
 
 
+def test_write_parquet_fails_on_directory_path(tmp_path):
+    """Verify that write_parquet raises an error if the output path is a directory."""
+    # Arrange
+    output_dir = tmp_path / "a_directory"
+    output_dir.mkdir()
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    # We expect an IsADirectoryError or a similar FileExistsError on POSIX/Windows
+    with pytest.raises(Exception) as excinfo:
+        write_parquet(data, output_dir, schema)
+
+    # Allow for different OS-specific errors
+    assert isinstance(excinfo.value, (IOError, PermissionError))
+
+
 def test_write_parquet_table_needs_cast(tmp_path):
     """Verify writing a table that requires schema casting succeeds."""
     # Arrange
@@ -712,6 +760,32 @@ def test_write_parquet_table_different_column_order(tmp_path):
     written_table = pq.read_table(output_path)
     assert written_table.schema.equals(target_schema)
     assert written_table.num_rows == 2
+
+
+@pytest.mark.skipif(
+    "sys.platform != 'win32'", reason="File locking is primarily a Windows concern"
+)
+def test_file_handle_is_released_after_inspect_schema(tmp_path):
+    """
+    Verify that inspect_schema releases its file handle, allowing the file
+    to be immediately overwritten. This is critical on Windows.
+    """
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([("a", pa.int64())])
+    write_parquet([{"a": 1}], output_path, schema)
+
+    # Act
+    # Inspect the schema, which on Windows could lock the file if not handled correctly.
+    _ = inspect_schema(output_path)
+
+    # Assert: The file should be immediately overwritable without a PermissionError
+    try:
+        write_parquet([{"a": 2}], output_path, schema)
+    except PermissionError:
+        pytest.fail(
+            "PermissionError raised: inspect_schema did not release file handle."
+        )
 
 
 def test_write_parquet_success_table_matching_schema(tmp_path):

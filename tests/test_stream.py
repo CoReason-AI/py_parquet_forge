@@ -166,3 +166,25 @@ def test_stream_writer_write_after_exit(tmp_path):
     # At this point, the context manager has exited and the writer should be closed.
     with pytest.raises(IOError, match="Cannot write to a closed writer"):
         writer_instance.write_chunk(data)
+
+
+def test_stream_writer_with_empty_chunk(tmp_path):
+    """Verify that writing an empty chunk does not corrupt the file."""
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data1 = [{"a": 1}, {"a": 2}]
+    empty_chunk = []
+    data2 = [{"a": 3}]
+
+    # Act
+    with ParquetStreamWriter(output_path, schema) as writer:
+        writer.write_chunk(data1)
+        writer.write_chunk(empty_chunk)
+        writer.write_chunk(data2)
+
+    # Assert
+    assert output_path.exists()
+    table = pq.read_table(output_path)
+    assert table.num_rows == 3
+    assert table.column("a").to_pylist() == [1, 2, 3]

@@ -64,7 +64,12 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
 
         # Cast to the final schema. This is the main validation step.
         # An ArrowInvalid will be caught if types are incompatible.
-        return ordered_table.cast(target_schema=schema)
+        casted_table = ordered_table.cast(target_schema=schema)
+
+        # The cast operation may preserve the original table's metadata.
+        # To ensure the final schema is exactly the one requested, we
+        # explicitly apply the metadata from the target schema.
+        return casted_table.replace_schema_metadata(schema.metadata)
 
     except (pa.ArrowInvalid, KeyError, TypeError) as e:
         # Catch conversion/casting errors and raise our custom exception.
@@ -121,14 +126,21 @@ def inspect_schema(path: PathLike) -> pa.Schema:
     """
     Reads the schema from a Parquet file or dataset.
 
+    This function ensures that file handles are properly closed to avoid
+    file locking issues, particularly on Windows.
+
     :param path: The path to the Parquet file or dataset directory.
     :return: The pyarrow.Schema object from the file/dataset metadata.
     """
     path_obj = Path(path)
     if path_obj.is_dir():
+        # ParquetDataset handles its own resources
         dataset = pq.ParquetDataset(path_obj)
         return dataset.schema
-    return pq.read_schema(path_obj)
+
+    # For single files, use a context manager to ensure the file handle is released
+    with pq.ParquetFile(path_obj) as parquet_file:
+        return parquet_file.schema.to_arrow_schema()
 
 
 def write_to_dataset(
@@ -167,6 +179,13 @@ def write_to_dataset(
             raise
 
     table = _convert_to_arrow_table(data, schema)
+
+    # Pre-validate that partition columns exist in the schema
+    if partition_cols:
+        schema_cols = set(table.schema.names)
+        for col in partition_cols:
+            if col not in schema_cols:
+                raise pa.ArrowInvalid(f"Partition column '{col}' not in schema")
 
     # Only create the directory after schema validation has passed
     output_dir_obj.mkdir(parents=True, exist_ok=True)
