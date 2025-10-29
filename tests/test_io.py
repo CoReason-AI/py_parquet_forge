@@ -601,6 +601,23 @@ def test_write_parquet_success_recordbatch(tmp_path):
     assert read_table.num_rows == 2
 
 
+def test_write_parquet_fails_on_directory_path(tmp_path):
+    """Verify that write_parquet raises an error if the output path is a directory."""
+    # Arrange
+    output_dir = tmp_path / "a_directory"
+    output_dir.mkdir()
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+
+    # Act & Assert
+    # We expect an IsADirectoryError or a similar FileExistsError on POSIX/Windows
+    with pytest.raises(Exception) as excinfo:
+        write_parquet(data, output_dir, schema)
+
+    # Allow for different OS-specific errors
+    assert isinstance(excinfo.value, (IOError, PermissionError))
+
+
 def test_write_parquet_table_needs_cast(tmp_path):
     """Verify writing a table that requires schema casting succeeds."""
     # Arrange
