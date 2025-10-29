@@ -64,7 +64,12 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
 
         # Cast to the final schema. This is the main validation step.
         # An ArrowInvalid will be caught if types are incompatible.
-        return ordered_table.cast(target_schema=schema)
+        casted_table = ordered_table.cast(target_schema=schema)
+
+        # The cast operation may preserve the original table's metadata.
+        # To ensure the final schema is exactly the one requested, we
+        # explicitly apply the metadata from the target schema.
+        return casted_table.replace_schema_metadata(schema.metadata)
 
     except (pa.ArrowInvalid, KeyError, TypeError) as e:
         # Catch conversion/casting errors and raise our custom exception.
