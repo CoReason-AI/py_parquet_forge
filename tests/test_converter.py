@@ -92,6 +92,19 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_pydict_schema_validation_error(tmp_path):
+    """
+    Verify SchemaValidationError is raised for a pydict with an incompatible schema.
+    """
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = [{"a": 1}, {"a": "two"}, {"a": 3}]  # Incompatible value "two"
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        _convert_to_arrow_table(data, schema)
+
+
 def test_convert_to_arrow_table_mixed_type_object_column_error(tmp_path):
     """
     Verify SchemaValidationError is raised for a DataFrame with a mixed-type
