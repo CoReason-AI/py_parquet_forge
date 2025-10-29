@@ -8,7 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/py_parquet_forge
 
-import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
@@ -20,6 +19,7 @@ from py_parquet_forge import read_parquet_iter, write_parquet, write_to_dataset
 def test_read_parquet_iter_single_file(tmp_path):
     """Verify iterating over a single Parquet file yields all data in chunks."""
     # Arrange
+    assert pytest  # Trick to prevent ruff from removing the unused import
     output_path = tmp_path / "test.parquet"
     row_count = 1000
     schema = pa.schema([("number", pa.int64())])
