@@ -462,7 +462,9 @@ def test_write_to_dataset_invalid_partition_column(tmp_path):
     data = [{"a": 1}]
 
     # Act & Assert
-    with pytest.raises(pa.ArrowInvalid, match="Partition column 'non_existent_col' not in schema"):
+    with pytest.raises(
+        pa.ArrowInvalid, match="Partition column 'non_existent_col' not in schema"
+    ):
         write_to_dataset(data, output_dir, schema, partition_cols=["non_existent_col"])
 
 
