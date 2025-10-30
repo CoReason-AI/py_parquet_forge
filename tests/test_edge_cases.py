@@ -31,7 +31,9 @@ def test_write_parquet_atomic_failure_cleanup(tmp_path: Path):
     # The temp file name is non-deterministic, so we need to find it
     temp_file_dir = output_file.parent
 
-    with patch("py_parquet_forge.main.pq.write_table", side_effect=IOError("Disk full")):
+    with patch(
+        "py_parquet_forge.main.pq.write_table", side_effect=IOError("Disk full")
+    ):
         with pytest.raises(IOError):
             write_parquet(PANDAS_DF, output_file, SCHEMA)
 
@@ -53,7 +55,9 @@ def test_write_parquet_atomic_failure_preserves_existing_file(tmp_path: Path):
     original_content = "pre-existing content"
     output_file.write_text(original_content)
 
-    with patch("py_parquet_forge.main.pq.write_table", side_effect=IOError("Disk full")):
+    with patch(
+        "py_parquet_forge.main.pq.write_table", side_effect=IOError("Disk full")
+    ):
         with pytest.raises(IOError):
             write_parquet(PANDAS_DF, output_file, SCHEMA)
 
