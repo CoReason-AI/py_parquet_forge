@@ -73,6 +73,13 @@ jobs:
         run: brew install apache-arrow
         shell: bash
 
+      - name: Install Arrow C++ (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
+          vcpkgJsonGlob: '**/vcpkg.json'
+
       - name: Install dependencies
         run: poetry install --with dev
         shell: bash
