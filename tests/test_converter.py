@@ -92,6 +92,32 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_preserves_schema_metadata():
+    """
+    Verifies that the custom metadata from the target schema is correctly applied
+    to the final table, even when casting is performed.
+    """
+    # Arrange
+    # Create a DataFrame. When converted to an Arrow Table, it will have pandas metadata.
+    df = pd.DataFrame({"a": [1, 2, 3]})
+
+    # Create a target schema with custom metadata that is different from pandas metadata.
+    custom_metadata = {b"source": b"test_metadata", b"version": b"1"}
+    target_schema = pa.schema([pa.field("a", pa.int64())]).with_metadata(
+        custom_metadata
+    )
+
+    # Act
+    # The function should see that the schemas are not equal (due to metadata and type diff)
+    # and perform a cast, then replace the metadata.
+    table = _convert_to_arrow_table(df, target_schema)
+
+    # Assert
+    # The final schema must be exactly equal to our target schema, including metadata.
+    assert table.schema.equals(target_schema)
+    assert table.schema.metadata == custom_metadata
+
+
 def test_convert_to_arrow_table_handles_pandas_metadata_difference():
     """
     Verify that conversion succeeds even if the initial Arrow schema from pandas
