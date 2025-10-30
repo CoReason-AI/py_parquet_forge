@@ -15,7 +15,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from py_parquet_forge import write_parquet
+from py_parquet_forge import SchemaValidationError, write_parquet
 
 # Define a consistent schema and some test data
 SCHEMA = pa.schema([pa.field("id", pa.int64(), nullable=False)])
@@ -64,3 +64,27 @@ def test_write_parquet_atomic_failure_preserves_existing_file(tmp_path: Path):
     # Verify the original file is untouched
     assert output_file.exists()
     assert output_file.read_text() == original_content
+
+
+def test_write_parquet_duplicate_columns_raises_error(tmp_path: Path):
+    """
+    Verifies that write_parquet raises a SchemaValidationError when the input
+    data contains duplicate column names, which pyarrow cannot handle.
+    """
+    output_file = tmp_path / "test.parquet"
+    # The target schema is valid, but the data is not.
+    schema = pa.schema(
+        [
+            pa.field("a", pa.int64()),
+            pa.field("b", pa.string()),
+        ]
+    )
+    # pyarrow.Table.from_pylist will raise a pyarrow.ArrowInvalid error here,
+    # which _convert_to_arrow_table should catch and re-raise as our custom exception.
+    # Note: This is not a dict, but a list of key-value pairs to allow duplicates.
+    bad_data = pd.DataFrame([[1, "a"], [2, "b"]], columns=["a", "a"])
+
+    with pytest.raises(SchemaValidationError):
+        write_parquet(bad_data, output_file, schema)
+
+    assert not output_file.exists()
