@@ -231,7 +231,7 @@ def read_parquet(
             if pa.types.is_integer(field.type) and df[field.name].isnull().any():
                 try:
                     df[field.name] = df[field.name].astype("Int64")
-                except (TypeError, ValueError):
+                except (TypeError, ValueError, OverflowError):
                     # This can happen if the column contains non-numeric data that
                     # couldn't be cast to a float. In this case, we leave it as is.
                     pass
