@@ -468,6 +468,31 @@ def test_write_to_dataset_invalid_partition_column(tmp_path):
         write_to_dataset(data, output_dir, schema, partition_cols=["non_existent_col"])
 
 
+def test_write_to_dataset_with_empty_partition_cols(tmp_path):
+    """Verify that partition_cols=[] is treated as no partitioning."""
+    # Arrange
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("value", pa.int64()), ("part", pa.string())])
+    df = pd.DataFrame({"value": [1, 2, 3], "part": ["a", "b", "a"]})
+
+    # Act
+    write_to_dataset(df, output_dir, schema, partition_cols=[])
+
+    # Assert
+    # Check that no partition subdirectories were created
+    assert not any(f.is_dir() for f in output_dir.iterdir())
+
+    # Check that at least one parquet file was created in the root
+    parquet_files = list(output_dir.glob("*.parquet"))
+    assert len(parquet_files) >= 1
+
+    # Verify the content of the dataset
+    table = pq.read_table(output_dir)
+    assert table.num_rows == 3
+    assert "part" in table.schema.names
+    assert "value" in table.schema.names
+
+
 def test_read_parquet_pandas_output(tmp_path):
     """Verify reading a Parquet file to a pandas DataFrame."""
     # Arrange
