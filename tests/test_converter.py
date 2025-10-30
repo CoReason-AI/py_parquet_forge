@@ -92,6 +92,91 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_pydict_missing_column():
+    """Verify SchemaValidationError for a pydict missing a required column."""
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
+    data = [{"a": 1}, {"a": 2}]  # Missing column "b"
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError):
+        _convert_to_arrow_table(data, schema)
+
+
+def test_convert_to_arrow_table_pydict_ignores_extra_columns():
+    """Verify that extra columns in a pydict are correctly ignored."""
+    # Arrange
+    schema = pa.schema([pa.field("a", pa.int32())])
+    data = [
+        {"a": 1, "b": "extra"},
+        {"a": 2, "b": "extra"},
+    ]
+
+    # Act
+    table = _convert_to_arrow_table(data, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert "b" not in table.schema.names
+
+
+def test_convert_to_arrow_table_pydict_reorders_columns():
+    """Verify that columns from a pydict are correctly reordered."""
+    # Arrange
+    schema = pa.schema([pa.field("b", pa.string()), pa.field("a", pa.int32())])
+    data = [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+
+    # Act
+    table = _convert_to_arrow_table(data, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.column_names == ["b", "a"]
+
+
+def test_convert_to_arrow_table_preserves_timestamp_precision():
+    """
+    Verifies that high-precision timestamps are preserved during conversion.
+    """
+    # Arrange
+    ts_ns = pd.Timestamp("2023-01-01 12:34:56.789123456")
+    df = pd.DataFrame({"time": [ts_ns]})
+
+    # Target schema requires nanosecond precision
+    schema = pa.schema([pa.field("time", pa.timestamp("ns"))])
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+    result_scalar = table.column("time")[0]
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert pa.types.is_timestamp(table.column("time").type)
+    assert result_scalar.as_py() == ts_ns
+    assert result_scalar.value % 1000 == 456  # Check nanosecond part
+
+
+def test_convert_to_arrow_table_handles_pandas_nullable_int():
+    """
+    Verifies that pandas nullable integer types (Int64) are handled correctly,
+    preserving nulls.
+    """
+    # Arrange
+    # Use pandas' nullable integer type
+    df = pd.DataFrame({"a": [1, pd.NA, 3]}, dtype="Int64")
+
+    # Target schema is a standard pyarrow integer type
+    schema = pa.schema([pa.field("a", pa.int64())])
+
+    # Act
+    table = _convert_to_arrow_table(df, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.column("a").null_count == 1
+    assert table.column("a").to_pylist() == [1, None, 3]
+
+
 def test_convert_to_arrow_table_preserves_schema_metadata():
     """
     Verifies that the custom metadata from the target schema is correctly applied
