@@ -57,6 +57,13 @@ jobs:
         run: pipx install poetry
         shell: bash
 
+      - name: Install Arrow C++
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -V libarrow-dev
+        shell: bash
+
       - name: Install dependencies
         run: poetry install --with dev
         shell: bash
