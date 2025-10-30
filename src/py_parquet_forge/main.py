@@ -54,8 +54,8 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         else:
             raise TypeError(f"Unsupported data type: {type(data)}")
 
-        # If the inferred schema already matches, we are done.
-        if table.schema.equals(schema):
+        # If the inferred schema already matches (including metadata), we are done.
+        if table.schema.equals(schema, check_metadata=True):
             return table
 
         # Reorder columns to match the target schema before casting.
