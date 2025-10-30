@@ -225,7 +225,17 @@ def read_parquet(
     table = pq.read_table(input_path, columns=columns, filters=filters, **kwargs)
 
     if output_format == "pandas":
-        return table.to_pandas()
+        df = table.to_pandas()
+        # Manually convert integer columns with nulls to nullable integer types
+        for field in table.schema:
+            if pa.types.is_integer(field.type) and df[field.name].isnull().any():
+                try:
+                    df[field.name] = df[field.name].astype("Int64")
+                except (TypeError, ValueError):
+                    # This can happen if the column contains non-numeric data that
+                    # couldn't be cast to a float. In this case, we leave it as is.
+                    pass
+        return df
     return table
 
 
