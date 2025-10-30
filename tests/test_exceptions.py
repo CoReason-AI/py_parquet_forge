@@ -8,9 +8,11 @@
 #
 # Source Code: https://github.com/CoReason-AI/py_parquet_forge
 
+import pandas as pd
 import pyarrow as pa
 import pytest
 
+from py_parquet_forge import write_parquet
 from py_parquet_forge.exceptions import SchemaValidationError
 
 
@@ -35,3 +37,26 @@ def test_schema_validation_error_can_be_caught_as_arrow_exception():
         assert "Test message" in str(e)
     except Exception as e:
         pytest.fail(f"Exception was not caught as ArrowException, but as {type(e)}")
+
+
+def test_write_parquet_schema_error_wraps_pyarrow_exception(tmp_path):
+    """
+    Verify that SchemaValidationError raised by write_parquet contains the
+    underlying pyarrow exception as its cause.
+    """
+    # Arrange
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    # This data will cause a pyarrow.ArrowInvalid error during casting
+    df = pd.DataFrame({"a": ["not-a-number"]})
+
+    # Act & Assert
+    with pytest.raises(SchemaValidationError) as excinfo:
+        write_parquet(df, output_path, schema)
+
+    # Verify that the original pyarrow error is the cause
+    assert isinstance(excinfo.value.__cause__, pa.ArrowInvalid)
+
+    # Verify that the informative message from the original error is preserved
+    # The exact message can vary between pyarrow versions, so we check for a key part
+    assert "Failed to parse string" in str(excinfo.value)
