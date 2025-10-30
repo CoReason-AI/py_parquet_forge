@@ -61,11 +61,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y -V ca-certificates lsb-release
-          wget -O /usr/share/keyrings/apache-arrow-keyring.gpg https://dl.bintray.com/apache/arrow/DEB-KEY.gpg
-          sudo tee /etc/apt/sources.list.d/apache-arrow.list <<'EOF'
-          deb [arch=amd64 signed-by=/usr/share/keyrings/apache-arrow-keyring.gpg] https://apache.jfrog.io/artifactory/arrow/ubuntu/ $(lsb_release --codename --short) main
-          EOF
+          sudo apt-get install -y -V ca-certificates lsb-release wget
+          wget https://packages.apache.org/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
+          sudo apt-get install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
           sudo apt-get update
           sudo apt-get install -y -V libarrow-dev
         shell: bash
