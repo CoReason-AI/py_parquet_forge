@@ -41,12 +41,9 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
             # This can fail on mixed-type object columns.
             table = pa.Table.from_pandas(data, preserve_index=False)
         elif isinstance(data, list):
-            if not data:
-                # Create an empty table with the provided schema.
-                table = pa.Table.from_pylist([], schema=schema)
-            else:
-                # Create from list of dicts, inferring schema.
-                table = pa.Table.from_pylist(data)
+            # When creating from a list, enforce the schema directly.
+            # This correctly handles missing keys by creating nulls.
+            table = pa.Table.from_pylist(data, schema=schema)
         elif isinstance(data, pa.RecordBatch):
             table = pa.Table.from_batches([data])
         elif isinstance(data, pa.Table):
@@ -134,8 +131,11 @@ def inspect_schema(path: PathLike) -> pa.Schema:
     """
     path_obj = Path(path)
     if path_obj.is_dir():
-        # ParquetDataset handles its own resources
-        dataset = pq.ParquetDataset(path_obj)
+        # Use the modern `pyarrow.dataset` API for robustness
+        dataset = ds.dataset(path_obj, format="parquet")
+        # Ensure the dataset is not empty before trying to access the schema
+        if not any(dataset.get_fragments()):
+            raise pa.ArrowInvalid(f"Cannot inspect schema of empty directory: {path}")
         return dataset.schema
 
     # For single files, use a context manager to ensure the file handle is released
