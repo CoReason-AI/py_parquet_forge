@@ -71,7 +71,7 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         # explicitly apply the metadata from the target schema.
         return casted_table.replace_schema_metadata(schema.metadata)
 
-    except (pa.ArrowInvalid, KeyError, TypeError) as e:
+    except (pa.ArrowInvalid, KeyError, TypeError, ValueError) as e:
         # Catch conversion/casting errors and raise our custom exception.
         raise SchemaValidationError(
             f"Failed to cast data to the target schema: {e}"
