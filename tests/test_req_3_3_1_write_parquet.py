@@ -35,9 +35,7 @@ PANDAS_DF = pd.DataFrame(
 
 LIST_OF_DICTS = PANDAS_DF.to_dict("records")
 ARROW_TABLE = pa.Table.from_pandas(PANDAS_DF, schema=SCHEMA, preserve_index=False)
-ARROW_BATCH = pa.RecordBatch.from_pandas(
-    PANDAS_DF, schema=SCHEMA, preserve_index=False
-)
+ARROW_BATCH = pa.RecordBatch.from_pandas(PANDAS_DF, schema=SCHEMA, preserve_index=False)
 
 
 @pytest.mark.parametrize(
