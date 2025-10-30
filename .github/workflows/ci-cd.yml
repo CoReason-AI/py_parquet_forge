@@ -57,6 +57,29 @@ jobs:
         run: pipx install poetry
         shell: bash
 
+      - name: Install Arrow C++
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -V ca-certificates lsb-release wget
+          wget https://packages.apache.org/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
+          sudo apt-get install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
+          sudo apt-get update
+          sudo apt-get install -y -V libarrow-dev
+        shell: bash
+
+      - name: Install Arrow C++ (macOS)
+        if: runner.os == 'macOS'
+        run: brew install apache-arrow
+        shell: bash
+
+      - name: Install Arrow C++ (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
+          vcpkgJsonGlob: '**/vcpkg.json'
+
       - name: Install dependencies
         run: poetry install --with dev
         shell: bash
