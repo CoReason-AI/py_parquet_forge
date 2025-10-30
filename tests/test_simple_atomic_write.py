@@ -10,7 +10,7 @@
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-import pytest
+import pytest  # noqa: F401
 
 from py_parquet_forge.main import write_parquet
 
