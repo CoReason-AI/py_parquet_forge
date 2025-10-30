@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 import pyarrow as pa
-import pytest
+import pytest  # noqa: F401
 
 from py_parquet_forge.main import read_parquet
 
