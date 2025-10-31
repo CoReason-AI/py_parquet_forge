@@ -392,8 +392,13 @@ def test_write_parquet_logs_error_on_cleanup_failure(tmp_path, mocker):
                 write_parquet(LIST_OF_DICTS, output_path, SCHEMA)
 
     # Check that the cleanup error was logged
-    assert any("Error removing temporary file" in call.args[0] for call in mock_logger_error.call_args_list)
-    assert any("Cleanup failed" in call.args[0] for call in mock_logger_error.call_args_list)
+    assert any(
+        "Error removing temporary file" in call.args[0]
+        for call in mock_logger_error.call_args_list
+    )
+    assert any(
+        "Cleanup failed" in call.args[0] for call in mock_logger_error.call_args_list
+    )
 
 
 def test_write_parquet_logs_arrow_exception_on_write(tmp_path, mocker):
@@ -404,7 +409,9 @@ def test_write_parquet_logs_arrow_exception_on_write(tmp_path, mocker):
     output_path = tmp_path / "test.parquet"
     mock_logger_error = mocker.patch("py_parquet_forge.main.logger.error")
 
-    with patch("pyarrow.parquet.write_table", side_effect=pa.ArrowException("Write error")):
+    with patch(
+        "pyarrow.parquet.write_table", side_effect=pa.ArrowException("Write error")
+    ):
         with pytest.raises(SchemaValidationError, match="Write error"):
             write_parquet(LIST_OF_DICTS, output_path, SCHEMA)
 

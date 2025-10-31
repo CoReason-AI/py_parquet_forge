@@ -311,9 +311,7 @@ def test_read_parquet_handles_nullable_integers(tmp_path):
     with the nullable 'Int64' dtype.
     """
     output_file = tmp_path / "test.parquet"
-    schema = pa.schema([
-        pa.field("id", pa.int64(), nullable=True)
-    ])
+    schema = pa.schema([pa.field("id", pa.int64(), nullable=True)])
 
     # Create a table with nulls in the integer column
     table = pa.Table.from_pydict({"id": [1, None, 3]}, schema=schema)
@@ -324,12 +322,12 @@ def test_read_parquet_handles_nullable_integers(tmp_path):
 
     # Assert
     # 1. Check that the dtype is pandas' nullable integer type
-    assert pd.api.types.is_integer_dtype(df['id'].dtype)
-    assert df['id'].dtype.name == 'Int64'
+    assert pd.api.types.is_integer_dtype(df["id"].dtype)
+    assert df["id"].dtype.name == "Int64"
 
     # 2. Check that the null value is pd.NA
-    assert pd.isna(df['id'][1])
+    assert pd.isna(df["id"][1])
 
     # 3. Check that non-null values are correct
-    assert df['id'][0] == 1
-    assert df['id'][2] == 3
+    assert df["id"][0] == 1
+    assert df["id"][2] == 3

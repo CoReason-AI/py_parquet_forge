@@ -241,7 +241,9 @@ def test_write_to_dataset_logs_arrow_exception(tmp_path, mocker):
     data = [{"a": 1}]
     mock_logger_error = mocker.patch("py_parquet_forge.main.logger.error")
 
-    with patch("pyarrow.parquet.write_to_dataset", side_effect=pa.ArrowException("Test error")):
+    with patch(
+        "pyarrow.parquet.write_to_dataset", side_effect=pa.ArrowException("Test error")
+    ):
         with pytest.raises(SchemaValidationError):
             write_to_dataset(data, output_dir, schema)
 
