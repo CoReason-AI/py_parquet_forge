@@ -80,7 +80,7 @@ def test_nullability_error():
     df = pd.DataFrame({"a": [1, None, 3], "b": ["x", "y", "z"]})
     with pytest.raises(
         SchemaValidationError,
-        match="Casting field 'a' with null values to non-nullable",
+        match="Column 'a' is declared non-nullable but contains nulls",
     ):
         _convert_to_arrow_table(df, TARGET_SCHEMA)
 
@@ -128,3 +128,39 @@ def test_metadata_is_applied():
     converted_table = _convert_to_arrow_table(source_table, TARGET_SCHEMA)
     assert converted_table.schema.metadata
     assert converted_table.schema.metadata == {b"key": b"value"}
+
+
+def test_explicit_null_check_is_triggered():
+    """
+    Tests that the explicit null check is triggered, not just the cast error.
+
+    This test creates a scenario where the data type of a column is already
+    correct (int64), but it contains nulls where the target schema forbids them.
+    This bypasses errors during casting and isolates the explicit null check.
+    """
+    # Schema with a nullable integer column
+    source_schema = pa.schema(
+        [
+            pa.field("a", pa.int64(), nullable=True),
+            pa.field("b", pa.string(), nullable=True),
+        ]
+    )
+    # Target schema where the integer column is non-nullable
+    target_schema = pa.schema(
+        [
+            pa.field("a", pa.int64(), nullable=False),
+            pa.field("b", pa.string(), nullable=True),
+        ]
+    )
+
+    # Create a table with a null in the 'a' column
+    source_table = pa.Table.from_pydict(
+        {"a": [1, None, 3], "b": ["x", "y", "z"]}, schema=source_schema
+    )
+
+    # Expect our custom validation error with the specific message
+    with pytest.raises(
+        SchemaValidationError,
+        match="Column 'a' is declared non-nullable but contains nulls",
+    ):
+        _convert_to_arrow_table(source_table, target_schema)
