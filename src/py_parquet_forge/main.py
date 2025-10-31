@@ -57,7 +57,8 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
             table = ordered_table.cast(target_schema=schema)
 
         # Step 3: Explicit Nullability Validation
-        # The cast operation does not validate nullability, so we must do it here.
+        # The cast operation does not always validate nullability (e.g., if no
+        # type cast is needed), so we must do it here.
         for field in schema:
             if not field.nullable and table.column(field.name).null_count > 0:
                 raise pa.ArrowInvalid(
@@ -105,9 +106,16 @@ def write_parquet(
         # os.replace provides atomic overwrite functionality on both POSIX and Windows.
         os.replace(temp_file_path, output_path_obj)
         logger.info(f"Successfully wrote Parquet file to {output_path_obj}")
+    except pa.ArrowException as e:
+        # pyarrow can raise schema-related errors during the write phase.
+        # We wrap these in our custom exception to provide a consistent API.
+        logger.error(f"Arrow schema validation error writing to {output_path_obj}: {e}")
+        raise SchemaValidationError(
+            f"Schema validation failed during write operation: {e}"
+        ) from e
     except Exception as e:
+        # Catch other potential errors (e.g., IOErrors) and log them.
         logger.error(f"Failed to write Parquet file to {output_path_obj}: {e}")
-        # Re-raise the exception after attempting to clean up
         raise
     finally:
         # Clean up the temporary file if it still exists
@@ -187,13 +195,19 @@ def write_to_dataset(
     # Only create the directory after schema validation has passed
     output_dir_obj.mkdir(parents=True, exist_ok=True)
 
-    pq.write_to_dataset(
-        table,
-        root_path=output_dir_obj,
-        partition_cols=partition_cols or [],
-        **kwargs,
-    )
-    logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
+    try:
+        pq.write_to_dataset(
+            table,
+            root_path=output_dir_obj,
+            partition_cols=partition_cols or [],
+            **kwargs,
+        )
+        logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
+    except pa.ArrowException as e:
+        logger.error(f"Arrow schema validation error writing to {output_dir_obj}: {e}")
+        raise SchemaValidationError(
+            f"Schema validation failed during dataset write operation: {e}"
+        ) from e
 
 
 def read_parquet(
