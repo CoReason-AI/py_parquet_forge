@@ -36,18 +36,11 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
     table: pa.Table
 
     try:
+        # Step 1: Initial conversion to Arrow Table
         if isinstance(data, pd.DataFrame):
-            # Create table from pandas, letting pyarrow infer types initially.
-            # This can fail on mixed-type object columns.
             table = pa.Table.from_pandas(data, preserve_index=False)
         elif isinstance(data, list):
-            if not data:
-                # Create an empty table with the provided schema.
-                table = pa.Table.from_pylist([], schema=schema)
-            else:
-                # Create from list of dicts, enforcing the target schema.
-                # This correctly handles inconsistent/missing keys by filling with nulls.
-                table = pa.Table.from_pylist(data, schema=schema)
+            table = pa.Table.from_pylist(data, schema=schema)
         elif isinstance(data, pa.RecordBatch):
             table = pa.Table.from_batches([data])
         elif isinstance(data, pa.Table):
@@ -55,25 +48,28 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         else:
             raise TypeError(f"Unsupported data type: {type(data)}")
 
-        # If the inferred schema already matches (including metadata), we are done.
-        if table.schema.equals(schema, check_metadata=True):
-            return table
+        # Step 2: Conformance
+        # If the table's schema is not already an exact match, conform it.
+        if not table.schema.equals(schema, check_metadata=True):
+            # Reorder columns to match the target schema before casting.
+            ordered_table = table.select([field.name for field in schema])
+            # Cast to the final schema's types.
+            table = ordered_table.cast(target_schema=schema)
 
-        # Reorder columns to match the target schema before casting.
-        # A KeyError will be caught if a required column is missing.
-        ordered_table = table.select([field.name for field in schema])
+        # Step 3: Explicit Nullability Validation
+        # The cast operation does not validate nullability, so we must do it here.
+        for field in schema:
+            if not field.nullable and table.column(field.name).null_count > 0:
+                raise pa.ArrowInvalid(
+                    f"Column '{field.name}' is declared non-nullable but contains nulls"
+                )
 
-        # Cast to the final schema. This is the main validation step.
-        # An ArrowInvalid will be caught if types are incompatible.
-        casted_table = ordered_table.cast(target_schema=schema)
-
-        # The cast operation may preserve the original table's metadata.
-        # To ensure the final schema is exactly the one requested, we
-        # explicitly apply the metadata from the target schema.
-        return casted_table.replace_schema_metadata(schema.metadata)
+        # Step 4: Final Metadata Replacement
+        # Ensure the final table has the exact metadata from the target schema.
+        return table.replace_schema_metadata(schema.metadata)
 
     except (pa.ArrowInvalid, KeyError, TypeError, ValueError) as e:
-        # Catch conversion/casting errors and raise our custom exception.
+        # Catch all conversion/casting errors and raise our custom exception.
         raise SchemaValidationError(
             f"Failed to cast data to the target schema: {e}"
         ) from e
