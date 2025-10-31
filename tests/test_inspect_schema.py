@@ -42,6 +42,22 @@ def test_inspect_schema_single_file(tmp_path):
     assert actual_schema.equals(expected_schema)
 
 
+def test_inspect_schema_empty_directory(tmp_path):
+    """
+    Verify that inspect_schema on an empty directory returns an empty schema,
+    as this is the behavior of pq.ParquetDataset in some versions.
+    """
+    # Arrange
+    empty_dir = tmp_path / "empty_dir"
+    empty_dir.mkdir()
+
+    # Act
+    schema = inspect_schema(empty_dir)
+
+    # Assert
+    assert schema.equals(pa.schema([]))
+
+
 def test_inspect_schema_nonexistent_path(tmp_path):
     """Verify that inspect_schema raises an exception for a nonexistent path."""
     # Arrange
