@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "py_parquet_forge"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python utility for standardizing high-performance serialization of in-memory data objects into local Apache Parquet files. Built on PyArrow, it provides memory-efficient streaming, atomic writes, and schema-enforced dataset management."
 authors = ["Gowtham A Rao <gowtham.rao@coreason.ai>"]
 license = "Prosperity-3.0"
@@ -29,7 +29,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "py_parquet_forge"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python utility for standardizing high-performance serialization of in-memory data objects into local Apache Parquet files. Built on PyArrow, it provides memory-efficient streaming, atomic writes, and schema-enforced dataset management."
 readme = "README.md"
 requires-python = ">=3.12"
