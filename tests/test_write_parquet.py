@@ -377,6 +377,75 @@ def test_write_parquet_schema_validation_error(tmp_path: Path):
     assert not output_file.exists()
 
 
+def test_write_parquet_logs_error_on_cleanup_failure(tmp_path, mocker):
+    """
+    Verifies that if os.remove fails in the finally block, the error is logged.
+    """
+    output_path = tmp_path / "test.parquet"
+    mock_logger_error = mocker.patch("py_parquet_forge.main.logger.error")
+
+    # Simulate a failure during the os.replace to trigger the finally block
+    with patch("os.replace", side_effect=IOError("Move failed")):
+        # Also simulate a failure during the cleanup's os.remove
+        with patch("os.remove", side_effect=OSError("Cleanup failed")):
+            with pytest.raises(IOError, match="Move failed"):
+                write_parquet(LIST_OF_DICTS, output_path, SCHEMA)
+
+    # Check that the cleanup error was logged
+    assert any("Error removing temporary file" in call.args[0] for call in mock_logger_error.call_args_list)
+    assert any("Cleanup failed" in call.args[0] for call in mock_logger_error.call_args_list)
+
+
+def test_write_parquet_logs_arrow_exception_on_write(tmp_path, mocker):
+    """
+    Verifies that an ArrowException during the write operation is logged and
+    wrapped in SchemaValidationError.
+    """
+    output_path = tmp_path / "test.parquet"
+    mock_logger_error = mocker.patch("py_parquet_forge.main.logger.error")
+
+    with patch("pyarrow.parquet.write_table", side_effect=pa.ArrowException("Write error")):
+        with pytest.raises(SchemaValidationError, match="Write error"):
+            write_parquet(LIST_OF_DICTS, output_path, SCHEMA)
+
+    mock_logger_error.assert_called_once()
+    assert "Arrow schema validation error" in mock_logger_error.call_args[0][0]
+
+
+def test_atomic_write_failure_does_not_affect_original_file(tmp_path: Path):
+    """
+    Verifies that a failed overwrite operation does not delete or corrupt
+    the original file.
+    """
+    output_file = tmp_path / "test.parquet"
+
+    # 1. Write an initial file successfully.
+    initial_df = pd.DataFrame({"col1": [1, 2]})
+    initial_schema = pa.schema([pa.field("col1", pa.int64())])
+    write_parquet(initial_df, output_file, initial_schema)
+
+    # Verify initial write
+    assert output_file.exists()
+    read_table_before = pq.read_table(output_file)
+    pd.testing.assert_frame_equal(initial_df, read_table_before.to_pandas())
+
+    # 2. Attempt to overwrite, but simulate a failure during the write.
+    overwrite_df = pd.DataFrame({"col2": ["a", "b"]})
+    overwrite_schema = pa.schema([pa.field("col2", pa.string())])
+
+    with patch("pyarrow.parquet.write_table", side_effect=IOError("Disk full")):
+        with pytest.raises(IOError, match="Disk full"):
+            write_parquet(overwrite_df, output_file, overwrite_schema)
+
+    # 3. Verify the original file is untouched and no temp files remain.
+    assert output_file.exists(), "Original file was deleted"
+    read_table_after = pq.read_table(output_file)
+    pd.testing.assert_frame_equal(initial_df, read_table_after.to_pandas())
+
+    temp_files = list(tmp_path.glob("*.tmp"))
+    assert not temp_files, f"Temporary files found after failed overwrite: {temp_files}"
+
+
 # endregion
 
 # region Atomic Behavior Tests
