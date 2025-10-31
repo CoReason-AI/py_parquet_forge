@@ -92,17 +92,6 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
-def test_convert_to_arrow_table_pydict_missing_column():
-    """Verify SchemaValidationError for a pydict missing a required column."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
-    data = [{"a": 1}, {"a": 2}]  # Missing column "b"
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(data, schema)
-
-
 def test_convert_to_arrow_table_pydict_ignores_extra_columns():
     """Verify that extra columns in a pydict are correctly ignored."""
     # Arrange
@@ -375,6 +364,38 @@ def test_convert_to_arrow_table_with_null_values(tmp_path):
     assert table.column("b").to_pylist()[0] == 4.0
     assert table.column("b").to_pylist()[1] == 5.0
     assert pd.isna(table.column("b").to_pylist()[2])
+
+
+def test_convert_to_arrow_table_pydict_inconsistent_keys():
+    """
+    Verify that a pydict with inconsistent keys (some missing in some records)
+    is correctly handled by populating the missing values with nulls.
+    """
+    # Arrange
+    schema = pa.schema(
+        [
+            pa.field("a", pa.int64()),
+            pa.field("b", pa.string()),
+            pa.field("c", pa.float64()),
+        ]
+    )
+    # 'b' is missing from the first record, 'c' from the second, 'a' from the third.
+    data = [
+        {"a": 1, "c": 1.1},
+        {"a": 2, "b": "two"},
+        {"b": "three", "c": 3.3},
+    ]
+
+    # Act
+    table = _convert_to_arrow_table(data, schema)
+
+    # Assert
+    assert table.schema.equals(schema)
+    assert table.num_rows == 3
+    # Check that the nulls were inserted correctly
+    assert table.column("a").to_pylist() == [1, 2, None]
+    assert table.column("b").to_pylist() == [None, "two", "three"]
+    assert table.column("c").to_pylist() == [1.1, None, 3.3]
 
 
 def test_convert_to_arrow_table_schema_validation_error(tmp_path):

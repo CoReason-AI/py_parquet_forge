@@ -45,8 +45,9 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
                 # Create an empty table with the provided schema.
                 table = pa.Table.from_pylist([], schema=schema)
             else:
-                # Create from list of dicts, inferring schema.
-                table = pa.Table.from_pylist(data)
+                # Create from list of dicts, enforcing the target schema.
+                # This correctly handles inconsistent/missing keys by filling with nulls.
+                table = pa.Table.from_pylist(data, schema=schema)
         elif isinstance(data, pa.RecordBatch):
             table = pa.Table.from_batches([data])
         elif isinstance(data, pa.Table):
