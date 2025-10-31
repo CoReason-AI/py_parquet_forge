@@ -48,22 +48,26 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         else:
             raise TypeError(f"Unsupported data type: {type(data)}")
 
-        # Step 2: Conformance
+        # Step 2: Explicit Nullability Validation (EARLY CHECK)
+        # We check for nulls BEFORE casting. This provides a more specific error
+        # message than the generic error raised by .cast() when a column with
+        # nulls is cast to a non-nullable type.
+        for field in schema:
+            # Check if the field exists in the source table before accessing it.
+            if field.name in table.schema.names:
+                if not field.nullable and table.column(field.name).null_count > 0:
+                    raise pa.ArrowInvalid(
+                        f"Column '{field.name}' is declared non-nullable but contains nulls"
+                    )
+
+        # Step 3: Conformance
         # If the table's schema is not already an exact match, conform it.
         if not table.schema.equals(schema, check_metadata=True):
             # Reorder columns to match the target schema before casting.
+            # A KeyError here indicates a column is missing from the source.
             ordered_table = table.select([field.name for field in schema])
             # Cast to the final schema's types.
             table = ordered_table.cast(target_schema=schema)
-
-        # Step 3: Explicit Nullability Validation
-        # The cast operation does not always validate nullability (e.g., if no
-        # type cast is needed), so we must do it here.
-        for field in schema:
-            if not field.nullable and table.column(field.name).null_count > 0:
-                raise pa.ArrowInvalid(
-                    f"Column '{field.name}' is declared non-nullable but contains nulls"
-                )
 
         # Step 4: Final Metadata Replacement
         # Ensure the final table has the exact metadata from the target schema.
