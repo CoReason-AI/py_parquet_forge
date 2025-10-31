@@ -57,15 +57,26 @@ def test_convert_to_arrow_table_from_table(tmp_path):
     assert table.schema.equals(schema)
 
 
-def test_convert_to_arrow_table_unsupported_type(tmp_path):
-    """Verify that a TypeError is raised for unsupported data types."""
+@pytest.mark.parametrize(
+    "unsupported_data",
+    [
+        {"a": 1},  # Raw dictionary, not in a list
+        {1, 2, 3},  # Set
+        "a string",  # Raw string
+        123,  # Raw integer
+    ],
+    ids=["raw_dict", "set", "string", "integer"],
+)
+def test_convert_to_arrow_table_unsupported_type(unsupported_data):
+    """
+    Verify that SchemaValidationError is raised for various unsupported data types.
+    """
     # Arrange
     schema = pa.schema([pa.field("a", pa.int32())])
-    data = "unsupported"
 
     # Act & Assert
     with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(data, schema)
+        _convert_to_arrow_table(unsupported_data, schema)
 
 
 def test_convert_to_arrow_table_schema_already_correct(tmp_path):
