@@ -141,3 +141,25 @@ def test_data_type_binary(tmp_path: Path):
 
     # Assert
     assert read_table.column("data").to_pylist() == binary_data
+
+
+def test_data_type_bigint(tmp_path: Path):
+    """Verify that large integers (int64) are preserved correctly."""
+    # Arrange
+    schema = pa.schema([pa.field("big_int", pa.int64())])
+    # Values that exceed the 32-bit integer range
+    large_int1 = 2**31
+    large_int2 = -(2**31) - 1
+    data = [{"big_int": large_int1}, {"big_int": large_int2}, {"big_int": None}]
+    output_path = tmp_path / "test.parquet"
+
+    # Act
+    write_parquet(data, output_path, schema)
+    read_df = read_parquet(output_path)
+
+    # Assert
+    # The nullable integer type uses pd.NA, not None, so we check for it explicitly
+    result_list = read_df["big_int"].tolist()
+    assert result_list[0] == large_int1
+    assert result_list[1] == large_int2
+    assert pd.isna(result_list[2])

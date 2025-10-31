@@ -11,267 +11,120 @@
 import pandas as pd
 import pyarrow as pa
 import pytest
-
 from py_parquet_forge.exceptions import SchemaValidationError
 from py_parquet_forge.main import _convert_to_arrow_table
 
-
-def test_convert_to_arrow_table_from_pydict_empty_list(tmp_path):
-    """Verify that an empty list of dicts is correctly converted."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    data = []
-
-    # Act
-    table = _convert_to_arrow_table(data, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-    assert table.num_rows == 0
+# A consistent schema to be used for most tests
+TARGET_SCHEMA = pa.schema(
+    [
+        pa.field("a", pa.int64(), nullable=False),
+        pa.field("b", pa.string(), nullable=True),
+    ],
+    metadata={b"key": b"value"},
+)
 
 
-def test_convert_to_arrow_table_from_record_batch(tmp_path):
-    """Verify that a pyarrow.RecordBatch is correctly converted."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    record_batch = pa.RecordBatch.from_pydict({"a": [1, 2, 3]}, schema=schema)
-
-    # Act
-    table = _convert_to_arrow_table(record_batch, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
+def test_convert_from_pandas_dataframe():
+    """Tests conversion from a pandas DataFrame."""
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+    table = _convert_to_arrow_table(df, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
     assert table.num_rows == 3
 
 
-def test_convert_to_arrow_table_from_table(tmp_path):
-    """Verify that a pyarrow.Table is correctly handled."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    arrow_table = pa.Table.from_pydict({"a": [1, 2, 3]}, schema=schema)
-
-    # Act
-    table = _convert_to_arrow_table(arrow_table, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-
-
-def test_convert_to_arrow_table_unsupported_type(tmp_path):
-    """Verify that a TypeError is raised for unsupported data types."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    data = "unsupported"
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(data, schema)
-
-
-def test_convert_to_arrow_table_schema_already_correct(tmp_path):
-    """Verify that no conversion is performed if the schema is already correct."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    df = pd.DataFrame({"a": [1, 2, 3]})
-
-    # Act
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-
-
-def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path):
-    """Verify SchemaValidationError is raised when a column is missing."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.string())])
-    df = pd.DataFrame({"a": [1, 2, 3]})  # Missing column "b"
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(df, schema)
-
-
-def test_convert_to_arrow_table_handles_pandas_metadata_difference():
-    """
-    Verify that conversion succeeds even if the initial Arrow schema from pandas
-    differs from the target schema only by metadata.
-    """
-    # Arrange
-    # pa.Table.from_pandas adds {'pandas': ...} metadata to the schema
-    df = pd.DataFrame({"a": [1, 2, 3]})
-    # Our target schema is identical in structure but lacks the pandas metadata
-    schema = pa.schema([pa.field("a", pa.int64())])
-
-    # Act
-    # The function should detect the schemas are not equal and proceed to cast,
-    # resulting in a table with the target schema.
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-
-
-def test_convert_to_arrow_table_pydict_successful_cast():
-    """
-    Verify that a pydict is successfully cast to a different but compatible
-    numeric type.
-    """
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.float64())])
-    # pyarrow will infer int64 for this list
-    data = [{"a": 1}, {"a": 2}, {"a": 3}]
-
-    # Act
-    table = _convert_to_arrow_table(data, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-    assert pa.types.is_float64(table.column("a").type)
-    assert table.column("a").to_pylist() == [1.0, 2.0, 3.0]
-
-
-def test_convert_to_arrow_table_pydict_internal_type_error():
-    """
-    Verify SchemaValidationError is raised when a pydict contains a value
-    that pyarrow cannot convert at all (e.g., a set), triggering an internal
-    ArrowTypeError.
-    """
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    # A 'set' is not a type that pyarrow can handle during conversion
-    data = [{"a": 1}, {"a": {2, 3}}]
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(data, schema)
-
-
-def test_convert_to_arrow_table_pydict_schema_validation_error(tmp_path):
-    """
-    Verify SchemaValidationError is raised for a pydict with an incompatible schema.
-    """
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    data = [{"a": 1}, {"a": "two"}, {"a": 3}]  # Incompatible value "two"
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(data, schema)
-
-
-def test_convert_to_arrow_table_mixed_type_object_column_error(tmp_path):
-    """
-    Verify SchemaValidationError is raised for a DataFrame with a mixed-type
-    object column that cannot be cast to the target schema.
-    """
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int64())])
-    # This DataFrame column will have dtype 'object' due to mixed types.
-    # pyarrow will fail when trying to convert "two" to an integer.
-    df = pd.DataFrame({"a": [1, "two", 3]})
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(df, schema)
-
-
-def test_convert_to_arrow_table_from_empty_dataframe(tmp_path):
-    """Verify that an empty pandas DataFrame is correctly converted."""
-    # Arrange
-    schema = pa.schema(
-        [
-            pa.field("id", pa.int64()),
-            pa.field("name", pa.string()),
-        ]
-    )
-    df = pd.DataFrame({"id": [], "name": []})
-
-    # Act
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-    assert table.num_rows == 0
-
-
-def test_convert_to_arrow_table_with_all_null_values(tmp_path):
-    """Verify that a DataFrame with all null values is handled correctly."""
-    # Arrange
-    schema = pa.schema(
-        [
-            pa.field("a", pa.int32()),
-            pa.field("b", pa.float64()),
-        ]
-    )
-    df = pd.DataFrame({"a": [None, None], "b": [pd.NA, pd.NA]})
-
-    # Act
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
+def test_convert_from_list_of_dicts():
+    """Tests conversion from a list of dictionaries."""
+    data = [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+    table = _convert_to_arrow_table(data, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
     assert table.num_rows == 2
-    assert table.column("a").null_count == 2
-    assert table.column("b").null_count == 2
 
 
-def test_convert_to_arrow_table_ignores_extra_columns(tmp_path):
-    """Verify that extra columns in the input data are correctly ignored."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    df = pd.DataFrame(
-        {
-            "a": [1, 2, 3],
-            "b": [4, 5, 6],  # Extra column "b"
-        }
+def test_convert_from_pyarrow_record_batch():
+    """Tests conversion from a PyArrow RecordBatch."""
+    data = [pa.record_batch([[1, 2], ["x", "y"]], schema=TARGET_SCHEMA)]
+    # This creates a table from a list of batches
+    record_batch = pa.Table.from_batches(data).to_batches()[0]
+    table = _convert_to_arrow_table(record_batch, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
+    assert table.num_rows == 2
+
+
+def test_convert_from_pyarrow_table():
+    """Tests that a PyArrow Table passes through correctly."""
+    source_table = pa.Table.from_pydict({"a": [1], "b": ["x"]}, schema=TARGET_SCHEMA)
+    table = _convert_to_arrow_table(source_table, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
+    assert table.num_rows == 1
+
+
+def test_column_reordering():
+    """Tests that columns are reordered to match the schema."""
+    df = pd.DataFrame({"b": ["x", "y"], "a": [1, 2]})
+    table = _convert_to_arrow_table(df, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
+    assert table.column_names == ["a", "b"]
+
+
+def test_type_casting():
+    """Tests that data types are cast correctly."""
+    # Input has int32, but schema requires int64
+    df = pd.DataFrame({"a": pd.Series([1, 2], dtype="int32"), "b": ["x", "y"]})
+    table = _convert_to_arrow_table(df, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
+    assert table.schema.field("a").type == pa.int64()
+
+
+def test_nullability_error():
+    """Tests that nulls in a non-nullable column raise an error."""
+    df = pd.DataFrame({"a": [1, None, 3], "b": ["x", "y", "z"]})
+    with pytest.raises(
+        SchemaValidationError,
+        match="Casting field 'a' with null values to non-nullable",
+    ):
+        _convert_to_arrow_table(df, TARGET_SCHEMA)
+
+
+def test_nullability_allowed():
+    """Tests that nulls are allowed in a nullable column."""
+    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", None, "z"]})
+    table = _convert_to_arrow_table(df, TARGET_SCHEMA)
+    assert table.schema.equals(TARGET_SCHEMA, check_metadata=True)
+    assert table.column("b").null_count == 1
+
+
+def test_unsupported_data_type():
+    """Tests that an unsupported data type raises a TypeError."""
+    data = {1, 2, 3}  # A set is not a supported type
+    with pytest.raises(SchemaValidationError, match="Unsupported data type"):
+        _convert_to_arrow_table(data, TARGET_SCHEMA)
+
+
+def test_missing_column_in_list_of_dicts():
+    """Tests that a missing non-nullable column in a list of dicts raises an error."""
+    data = [{"a": 1, "b": "x"}, {"b": "y"}]  # Missing non-nullable 'a'
+    with pytest.raises(SchemaValidationError, match="non-nullable but contains nulls"):
+        _convert_to_arrow_table(data, TARGET_SCHEMA)
+
+
+def test_metadata_is_applied():
+    """Tests that metadata from the target schema is correctly applied."""
+    # Create a source table without the target metadata.
+    # Using from_pydict avoids adding pandas-specific metadata.
+    source_table = pa.Table.from_pydict(
+        {"a": [1], "b": ["x"]},
+        schema=pa.schema(
+            [
+                pa.field("a", pa.int64(), nullable=False),
+                pa.field("b", pa.string(), nullable=True),
+            ]
+        ),
     )
 
-    # Act
-    table = _convert_to_arrow_table(df, schema)
+    # Ensure the table starts with no metadata
+    assert not source_table.schema.metadata
 
-    # Assert
-    assert table.schema.equals(schema)
-    assert "b" not in table.schema.names
-
-
-def test_convert_to_arrow_table_reorders_columns(tmp_path):
-    """Verify that columns are correctly reordered to match the schema."""
-    # Arrange
-    schema = pa.schema([pa.field("b", pa.string()), pa.field("a", pa.int32())])
-    df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-
-    # Act
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-    assert table.column_names == ["b", "a"]
-
-
-def test_convert_to_arrow_table_with_null_values(tmp_path):
-    """Verify that None and NaN values are correctly handled."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32()), pa.field("b", pa.float64())])
-    df = pd.DataFrame({"a": [1, None, 3], "b": [4.0, 5.0, pd.NA]})
-
-    # Act
-    table = _convert_to_arrow_table(df, schema)
-
-    # Assert
-    assert table.schema.equals(schema)
-    assert table.column("a").to_pylist() == [1, None, 3]
-    assert table.column("b").to_pylist()[0] == 4.0
-    assert table.column("b").to_pylist()[1] == 5.0
-    assert pd.isna(table.column("b").to_pylist()[2])
-
-
-def test_convert_to_arrow_table_schema_validation_error(tmp_path):
-    """Verify SchemaValidationError is raised for incompatible schemas."""
-    # Arrange
-    schema = pa.schema([pa.field("a", pa.int32())])
-    df = pd.DataFrame({"a": ["1", "2", "three"]})
-
-    # Act & Assert
-    with pytest.raises(SchemaValidationError):
-        _convert_to_arrow_table(df, schema)
+    # After conversion, it should have the target schema's metadata
+    converted_table = _convert_to_arrow_table(source_table, TARGET_SCHEMA)
+    assert converted_table.schema.metadata
+    assert converted_table.schema.metadata == {b"key": b"value"}

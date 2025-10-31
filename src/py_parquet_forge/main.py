@@ -36,17 +36,11 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
     table: pa.Table
 
     try:
+        # Step 1: Initial conversion to Arrow Table
         if isinstance(data, pd.DataFrame):
-            # Create table from pandas, letting pyarrow infer types initially.
-            # This can fail on mixed-type object columns.
             table = pa.Table.from_pandas(data, preserve_index=False)
         elif isinstance(data, list):
-            if not data:
-                # Create an empty table with the provided schema.
-                table = pa.Table.from_pylist([], schema=schema)
-            else:
-                # Create from list of dicts, inferring schema.
-                table = pa.Table.from_pylist(data)
+            table = pa.Table.from_pylist(data, schema=schema)
         elif isinstance(data, pa.RecordBatch):
             table = pa.Table.from_batches([data])
         elif isinstance(data, pa.Table):
@@ -54,25 +48,29 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
         else:
             raise TypeError(f"Unsupported data type: {type(data)}")
 
-        # If the inferred schema already matches, we are done.
-        if table.schema.equals(schema):
-            return table
+        # Step 2: Conformance
+        # If the table's schema is not already an exact match, conform it.
+        if not table.schema.equals(schema, check_metadata=True):
+            # Reorder columns to match the target schema before casting.
+            ordered_table = table.select([field.name for field in schema])
+            # Cast to the final schema's types.
+            table = ordered_table.cast(target_schema=schema)
 
-        # Reorder columns to match the target schema before casting.
-        # A KeyError will be caught if a required column is missing.
-        ordered_table = table.select([field.name for field in schema])
+        # Step 3: Explicit Nullability Validation
+        # The cast operation does not always validate nullability (e.g., if no
+        # type cast is needed), so we must do it here.
+        for field in schema:
+            if not field.nullable and table.column(field.name).null_count > 0:
+                raise pa.ArrowInvalid(
+                    f"Column '{field.name}' is declared non-nullable but contains nulls"
+                )
 
-        # Cast to the final schema. This is the main validation step.
-        # An ArrowInvalid will be caught if types are incompatible.
-        casted_table = ordered_table.cast(target_schema=schema)
+        # Step 4: Final Metadata Replacement
+        # Ensure the final table has the exact metadata from the target schema.
+        return table.replace_schema_metadata(schema.metadata)
 
-        # The cast operation may preserve the original table's metadata.
-        # To ensure the final schema is exactly the one requested, we
-        # explicitly apply the metadata from the target schema.
-        return casted_table.replace_schema_metadata(schema.metadata)
-
-    except (pa.ArrowInvalid, KeyError, TypeError) as e:
-        # Catch conversion/casting errors and raise our custom exception.
+    except (pa.ArrowInvalid, KeyError, TypeError, ValueError) as e:
+        # Catch all conversion/casting errors and raise our custom exception.
         raise SchemaValidationError(
             f"Failed to cast data to the target schema: {e}"
         ) from e
@@ -108,9 +106,16 @@ def write_parquet(
         # os.replace provides atomic overwrite functionality on both POSIX and Windows.
         os.replace(temp_file_path, output_path_obj)
         logger.info(f"Successfully wrote Parquet file to {output_path_obj}")
+    except pa.ArrowException as e:
+        # pyarrow can raise schema-related errors during the write phase.
+        # We wrap these in our custom exception to provide a consistent API.
+        logger.error(f"Arrow schema validation error writing to {output_path_obj}: {e}")
+        raise SchemaValidationError(
+            f"Schema validation failed during write operation: {e}"
+        ) from e
     except Exception as e:
+        # Catch other potential errors (e.g., IOErrors) and log them.
         logger.error(f"Failed to write Parquet file to {output_path_obj}: {e}")
-        # Re-raise the exception after attempting to clean up
         raise
     finally:
         # Clean up the temporary file if it still exists
@@ -170,6 +175,12 @@ def write_to_dataset(
 
     output_dir_obj = Path(output_dir)
 
+    # First, validate and convert the data to an Arrow Table.
+    # This ensures we don't perform destructive file system operations
+    # if the input data is invalid.
+    table = _convert_to_arrow_table(data, schema)
+
+    # Now that the data is validated, handle the file system operations.
     if output_dir_obj.exists() and mode == "overwrite":
         try:
             shutil.rmtree(output_dir_obj)
@@ -177,8 +188,6 @@ def write_to_dataset(
         except OSError as e:
             logger.error(f"Error removing directory {output_dir_obj}: {e}")
             raise
-
-    table = _convert_to_arrow_table(data, schema)
 
     # Pre-validate that partition columns exist in the schema
     if partition_cols:
@@ -190,13 +199,19 @@ def write_to_dataset(
     # Only create the directory after schema validation has passed
     output_dir_obj.mkdir(parents=True, exist_ok=True)
 
-    pq.write_to_dataset(
-        table,
-        root_path=output_dir_obj,
-        partition_cols=partition_cols or [],
-        **kwargs,
-    )
-    logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
+    try:
+        pq.write_to_dataset(
+            table,
+            root_path=output_dir_obj,
+            partition_cols=partition_cols or [],
+            **kwargs,
+        )
+        logger.info(f"Successfully wrote data to dataset at {output_dir_obj}")
+    except pa.ArrowException as e:
+        logger.error(f"Arrow schema validation error writing to {output_dir_obj}: {e}")
+        raise SchemaValidationError(
+            f"Schema validation failed during dataset write operation: {e}"
+        ) from e
 
 
 def read_parquet(
@@ -225,7 +240,17 @@ def read_parquet(
     table = pq.read_table(input_path, columns=columns, filters=filters, **kwargs)
 
     if output_format == "pandas":
-        return table.to_pandas()
+        df = table.to_pandas()
+        # Manually convert integer columns with nulls to nullable integer types
+        for field in table.schema:
+            if pa.types.is_integer(field.type) and df[field.name].isnull().any():
+                try:
+                    df[field.name] = df[field.name].astype("Int64")
+                except (TypeError, ValueError, OverflowError):
+                    # This can happen if the column contains non-numeric data that
+                    # couldn't be cast to a float. In this case, we leave it as is.
+                    pass
+        return df
     return table
 
 

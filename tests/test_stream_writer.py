@@ -188,3 +188,22 @@ def test_stream_writer_with_empty_chunk(tmp_path):
     table = pq.read_table(output_path)
     assert table.num_rows == 3
     assert table.column("a").to_pylist() == [1, 2, 3]
+
+
+def test_stream_writer_exit_handles_no_writer(tmp_path):
+    """
+    Verify that the __exit__ method does not raise an error if the writer
+    was never created due to an exception in __enter__.
+    """
+    output_path = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("a", pa.int32())])
+    init_error = RuntimeError("Failed to initialize writer")
+
+    with patch("pyarrow.parquet.ParquetWriter", side_effect=init_error):
+        with pytest.raises(RuntimeError, match="Failed to initialize writer"):
+            with ParquetStreamWriter(output_path, schema):
+                # This code will not be reached
+                pass
+
+    # The test passes if no additional exception is raised from __exit__
+    assert not output_path.exists()
