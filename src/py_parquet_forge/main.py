@@ -175,6 +175,12 @@ def write_to_dataset(
 
     output_dir_obj = Path(output_dir)
 
+    # First, validate and convert the data to an Arrow Table.
+    # This ensures we don't perform destructive file system operations
+    # if the input data is invalid.
+    table = _convert_to_arrow_table(data, schema)
+
+    # Now that the data is validated, handle the file system operations.
     if output_dir_obj.exists() and mode == "overwrite":
         try:
             shutil.rmtree(output_dir_obj)
@@ -182,8 +188,6 @@ def write_to_dataset(
         except OSError as e:
             logger.error(f"Error removing directory {output_dir_obj}: {e}")
             raise
-
-    table = _convert_to_arrow_table(data, schema)
 
     # Pre-validate that partition columns exist in the schema
     if partition_cols:

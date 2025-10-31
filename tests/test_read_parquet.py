@@ -137,21 +137,27 @@ def test_read_parquet_iter_empty_file(tmp_path):
     assert total_rows_read == 0
 
 
-def test_read_parquet_iter_empty_dataset(tmp_path):
-    """Verify iterating over an empty dataset yields no batches."""
-    # Arrange
+def test_read_parquet_iter_handles_empty_dataset_gracefully(tmp_path):
+    """
+    Verifies that iterating over an empty or non-existent dataset directory
+    yields no data and does not raise an error.
+    """
     output_dir = tmp_path / "dataset"
+
+    # Case 1: The directory does not exist.
+    # pyarrow's ds.dataset will raise a FileNotFoundError here.
+    with pytest.raises(pa.lib.ArrowIOError):
+        list(read_parquet_iter(output_dir))
+
+    # Case 2: The directory exists but is empty.
     output_dir.mkdir()
-    # Create a _common_metadata file to make it a valid but empty dataset
-    schema = pa.schema([("col1", pa.int64())])
-    pq.write_metadata(schema, output_dir / "_common_metadata")
+    batches_empty_dir = list(read_parquet_iter(output_dir))
+    assert sum(b.num_rows for b in batches_empty_dir) == 0
 
-    # Act
-    batches = list(read_parquet_iter(output_dir))
-    total_rows_read = sum(batch.num_rows for batch in batches)
-
-    # Assert
-    assert total_rows_read == 0
+    # Case 3: The directory contains empty subdirectories (e.g., empty partitions).
+    (output_dir / "part=a").mkdir()
+    batches_empty_part = list(read_parquet_iter(output_dir))
+    assert sum(b.num_rows for b in batches_empty_part) == 0
 
 
 def test_read_parquet_iter_chunk_size_larger_than_file(tmp_path):
@@ -297,3 +303,31 @@ def test_read_parquet_from_dataset(tmp_path):
     assert sorted(df["value"].tolist()) == [1, 2, 3]
     # In pyarrow datasets, partition columns are added as categorical
     assert df["part"].dtype == "category"
+
+
+def test_read_parquet_handles_nullable_integers(tmp_path):
+    """
+    Verify that integer columns with nulls are read into pandas DataFrames
+    with the nullable 'Int64' dtype.
+    """
+    output_file = tmp_path / "test.parquet"
+    schema = pa.schema([pa.field("id", pa.int64(), nullable=True)])
+
+    # Create a table with nulls in the integer column
+    table = pa.Table.from_pydict({"id": [1, None, 3]}, schema=schema)
+    pq.write_table(table, output_file)
+
+    # Act
+    df = read_parquet(output_file, output_format="pandas")
+
+    # Assert
+    # 1. Check that the dtype is pandas' nullable integer type
+    assert pd.api.types.is_integer_dtype(df["id"].dtype)
+    assert df["id"].dtype.name == "Int64"
+
+    # 2. Check that the null value is pd.NA
+    assert pd.isna(df["id"][1])
+
+    # 3. Check that non-null values are correct
+    assert df["id"][0] == 1
+    assert df["id"][2] == 3

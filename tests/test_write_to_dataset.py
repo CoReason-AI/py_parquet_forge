@@ -205,3 +205,48 @@ def test_write_to_dataset_mkdir_os_error(tmp_path):
     with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
         with pytest.raises(OSError, match="Permission denied"):
             write_to_dataset(data, output_dir, schema)
+
+
+def test_overwrite_mode_does_not_delete_on_validation_error(tmp_path):
+    """
+    Verifies that in 'overwrite' mode, the existing dataset is NOT deleted
+    if the new data fails schema validation.
+    """
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("col1", pa.int64())])
+
+    # 1. Create an initial, valid dataset.
+    initial_df = pd.DataFrame({"col1": [1, 2]})
+    write_to_dataset(initial_df, output_dir, schema, mode="append")
+    initial_table = pq.read_table(output_dir)
+    assert initial_table.num_rows == 2
+
+    # 2. Attempt to overwrite with invalid data.
+    invalid_df = pd.DataFrame({"col1": ["not-an-int"]})
+    with pytest.raises(SchemaValidationError):
+        write_to_dataset(invalid_df, output_dir, schema, mode="overwrite")
+
+    # 3. Assert that the original dataset still exists and is unchanged.
+    assert output_dir.exists()
+    final_table = pq.read_table(output_dir)
+    assert final_table.equals(initial_table)
+
+
+def test_write_to_dataset_logs_arrow_exception(tmp_path, mocker):
+    """
+    Verifies that an ArrowException during the write operation is logged.
+    """
+    output_dir = tmp_path / "dataset"
+    schema = pa.schema([("a", pa.int32())])
+    data = [{"a": 1}]
+    mock_logger_error = mocker.patch("py_parquet_forge.main.logger.error")
+
+    with patch(
+        "pyarrow.parquet.write_to_dataset", side_effect=pa.ArrowException("Test error")
+    ):
+        with pytest.raises(SchemaValidationError):
+            write_to_dataset(data, output_dir, schema)
+
+    mock_logger_error.assert_called_once()
+    assert "Arrow schema validation error" in mock_logger_error.call_args[0][0]
+    assert "Test error" in mock_logger_error.call_args[0][0]
