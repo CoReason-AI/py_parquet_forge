@@ -103,6 +103,37 @@ def test_convert_to_arrow_table_schema_validation_error_missing_column(tmp_path)
         _convert_to_arrow_table(df, schema)
 
 
+def test_convert_to_arrow_table_raises_on_null_in_non_nullable_column():
+    """
+    Verify SchemaValidationError is raised when data contains a null value for a
+    column that is explicitly marked as non-nullable in the schema.
+    """
+    # Arrange
+    # Define a schema where 'id' is a required field (non-nullable).
+    schema = pa.schema(
+        [
+            pa.field("id", pa.int64(), nullable=False),
+            pa.field("value", pa.string(), nullable=True),
+        ]
+    )
+    # Create data with a null value (pd.NA) in the non-nullable 'id' column.
+    data = pd.DataFrame(
+        {
+            "id": [1, pd.NA, 3],
+            "value": ["a", "b", "c"],
+        }
+    )
+
+    # Act & Assert
+    # Act & Assert
+    # The pyarrow.cast operation will fail first when trying to cast nulls to a
+    # non-nullable type. This is caught and wrapped in SchemaValidationError.
+    with pytest.raises(
+        SchemaValidationError, match="Casting field .* with null values to non-nullable"
+    ):
+        _convert_to_arrow_table(data, schema)
+
+
 def test_convert_to_arrow_table_pydict_ignores_extra_columns():
     """Verify that extra columns in a pydict are correctly ignored."""
     # Arrange

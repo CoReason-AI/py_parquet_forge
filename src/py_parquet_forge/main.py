@@ -56,15 +56,7 @@ def _convert_to_arrow_table(data: InputData, schema: PyArrowSchema) -> pa.Table:
             # Cast to the final schema's types.
             table = ordered_table.cast(target_schema=schema)
 
-        # Step 3: Explicit Nullability Validation
-        # The cast operation does not validate nullability, so we must do it here.
-        for field in schema:
-            if not field.nullable and table.column(field.name).null_count > 0:
-                raise pa.ArrowInvalid(
-                    f"Column '{field.name}' is declared non-nullable but contains nulls"
-                )
-
-        # Step 4: Final Metadata Replacement
+        # Step 3: Final Metadata Replacement
         # Ensure the final table has the exact metadata from the target schema.
         return table.replace_schema_metadata(schema.metadata)
 
