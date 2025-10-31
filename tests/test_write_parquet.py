@@ -400,6 +400,32 @@ def test_write_parquet_atomic_success(tmp_path: Path):
         assert not temp_files, f"Temporary files found: {temp_files}"
 
 
+def test_write_parquet_propagates_original_error_on_cleanup_failure(tmp_path: Path):
+    """
+    Verifies that if both the rename and the cleanup fail, the original
+    rename exception is propagated.
+    """
+    output_file = tmp_path / "test.parquet"
+
+    # This side effect simulates the creation of the temp file by the real write_table
+    def write_table_side_effect(table, path, **kwargs):
+        Path(path).touch()
+
+    # Simulate an error during os.replace, and a subsequent error during os.remove
+    with patch(
+        "pyarrow.parquet.write_table", side_effect=write_table_side_effect
+    ), patch("os.replace", side_effect=IOError("Move failed")) as mock_replace, patch(
+        "os.remove", side_effect=OSError("Cleanup failed")
+    ) as mock_remove:
+        # We expect to catch the original IOError from the rename operation
+        with pytest.raises(IOError, match="Move failed"):
+            write_parquet(LIST_OF_DICTS, output_file, SCHEMA)
+
+    mock_replace.assert_called_once()
+    mock_remove.assert_called_once()
+    assert not output_file.exists()
+
+
 def test_write_parquet_atomic_failure_cleanup(tmp_path: Path):
     """Verifies that write_parquet cleans up the temporary file on write failure."""
     output_file = tmp_path / "test.parquet"
